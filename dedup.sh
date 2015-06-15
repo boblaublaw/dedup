@@ -1,12 +1,14 @@
 #!/bin/sh 
 
-SUFFIX=ddmd5
+SUFFIX=ddh
+HASH=sha1
 
-function md5f() {
-    if [ "x${1}" = x ]; then
-        md5 
+# this will need to be tuned to the hash function of choice:
+function hashf() { 
+    if [ x"$1" = x ]; then
+        openssl $HASH | cut -f2 -d\= | cut -c2-
     else
-        md5 "${1}" | cut -f2 -d\= | cut -c2-
+        openssl $HASH "${1}" | cut -f2 -d\= | cut -c2-
     fi
 }
 
@@ -37,7 +39,7 @@ function hash_dir() {
     find "$root" -type f  | grep -v ".${SUFFIX}$" | while read f; do 
         hash="${f}.${SUFFIX}"
         if [ ! -f "${hash}" -o "${f}" -nt "${hash}" ]; then
-            md5f "${f}" > "${hash}"
+            hashf "${f}" > "${hash}"
         fi
     done
 
@@ -48,12 +50,12 @@ function hash_dir() {
             echo checking subdir $subdir
             hash="${subdir}".${SUFFIX}
             if [ ! -f "${hash}" -o "${subdir}" -nt "${hash}" ]; then
-                    cat "${subdir}"/*.${SUFFIX} 2> /dev/null | sort | md5f > "${hash}"
+                    cat "${subdir}"/*.${SUFFIX} 2> /dev/null | sort | hashf > "${hash}"
             fi
         done
         depth=$((depth - 1))
     done
-    cat ${root}/*.ddmd5 2>/dev/null | sort | md5 > ${root}.${SUFFIX}
+    cat ${root}/*.${SUFFIX} 2>/dev/null | sort | hashf > ${root}.${SUFFIX}
 }
 
 function clean_hashes() {
