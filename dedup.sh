@@ -5,17 +5,18 @@ HASH=sha1
 IGNORELIST=".DS_Store"
 
 # this will need to be tuned to the hash function of choice:
-function hashf() { 
-    /bin/echo -n "$HASH:"
-    if [ x"$1" = x ]; then
-        openssl $HASH | cut -f2 -d\= | cut -c2-
+function hashfunction() { 
+    /bin/echo -n "${HASH}:"
+    file="${1}"
+    if [ x"${file}" = x ]; then
+        openssl ${HASH} | cut -f2 -d\= | cut -c2-
     else
-        openssl $HASH "${1}" | cut -f2 -d\= | cut -c2-
+        openssl ${HASH} "${file}" | cut -f2 -d\= | cut -c2-
     fi
 }
 
 function dir_depth() {
-    dir="$1"
+    dir="${1}"
     maxdep=1
     last=-1
     while [ 1 ]; do
@@ -29,7 +30,25 @@ function dir_depth() {
     done
 }
 
-function hash_dir() {
+function create_dirhash() {
+    subdir="${1}"
+    hashfile="${subdir}.${SUFFIX}"
+    echo checking subdir $subdir with hashfile ${hashfile}
+    if [ ! -f "${hashfile}" -o "${subdir}" -nt "${hashfile}" ]; then
+        /bin/echo -n "d:" > "${hashfile}"
+        cat "${subdir}"/*.${SUFFIX} 2> /dev/null | sort | hashfunction >> "${hashfile}"
+    fi
+}
+function create_filehash() {
+    file="${1}"
+    hashfile="${file}.${SUFFIX}"
+    if [ ! -f "${hashfile}" -o "${file}" -nt "${hashfile}" ]; then
+        /bin/echo -n "f:" > "${hashfile}"
+        cat "${file}" | hashfunction >> "${hashfile}"
+    fi
+}
+
+function hash_directory() {
     root="$1"
 
     if [ ! -d "${root}" ]; then
@@ -50,25 +69,18 @@ function hash_dir() {
         if [ $skip -eq 1 ]; then
             continue
         fi
-        hash="${f}.${SUFFIX}"
-        if [ ! -f "${hash}" -o "${f}" -nt "${hash}" ]; then
-            hashf "${f}" > "${hash}"
-        fi
+        create_filehash "${f}"
     done
 
     depth=`dir_depth "$root"`
 
     while [ $depth -gt 0 ]; do
         find "${root}" -type d -mindepth $depth -maxdepth $depth| grep -v '^.$' | grep -v '^..$' | while read subdir; do 
-            echo checking subdir $subdir
-            hash="${subdir}".${SUFFIX}
-            if [ ! -f "${hash}" -o "${subdir}" -nt "${hash}" ]; then
-                    cat "${subdir}"/*.${SUFFIX} 2> /dev/null | sort | hashf > "${hash}"
-            fi
+            create_dirhash "${subdir}"
         done
         depth=$((depth - 1))
     done
-    cat ${root}/*.${SUFFIX} 2>/dev/null | sort | hashf > ${root}.${SUFFIX}
+    create_dirhash "${root}"
 }
 
 function clean_hashes() {
@@ -89,9 +101,11 @@ function prescribe_cmds() {
     root="$1"
 
     find "$root" -name "*.${SUFFIX}" | while read hashfile; do 
-        file=`basename "$hashfile" .${SUFFIX}`
-        hash=`cat "$hashfile"`
-        echo $file\|$hash
+        dir=`dirname "${hashfile}"`
+        file=`basename "${hashfile}" .${SUFFIX}`
+        sourcefile="${dir}/${file}"
+        hash=`cat "${hashfile}"`
+        echo $hash\|$sourcefile
     done
 }
 
@@ -109,26 +123,37 @@ where <cmd> is one of:
 EOF
 }
 
-case $1 in
-    hd )
-        shift
-        echo hashing $@
-        hash_dir $@
-        ;;
-    cd )
-        shift
-        echo cleaning $@
-        clean_hashes $@
-        ;;
-    pc )
-        shift
-        echo prescribing commands for $@
-        prescribe_cmds $@
-        ;;
-    *)
-        usage
-        ;;
-esac
+
+function process_cmd () {
+    cmd=${1}
+    dir="${2}"
+    case $cmd in
+        hd )
+            shift
+            echo hashing ${dir}
+            hash_directory "${dir}"
+            ;;
+        cd )
+            shift
+            echo cleaning ${dir}
+            clean_hashes "${dir}"
+            ;;
+        pc )
+            shift
+            echo prescribing commands for ${dir}
+            prescribe_cmds "${dir}"
+            ;;
+        *)
+            usage
+            ;;
+    esac
+}
 
 
+dir="${1}"
+shift
+cmds=$@
+for cmd in ${cmds}; do
+    process_cmd ${cmd} "${dir}" 
+done
 
