@@ -6,7 +6,7 @@ IGNORELIST=".DS_Store"
 
 # this will need to be tuned to the hash function of choice:
 function hashfunction() { 
-    /bin/echo -n "${HASH}:"
+    /bin/echo -n "${HASH}|"
     file="${1}"
     if [ x"${file}" = x ]; then
         openssl ${HASH} | cut -f2 -d\= | cut -c2-
@@ -33,17 +33,18 @@ function dir_depth() {
 function create_dirhash() {
     subdir="${1}"
     hashfile="${subdir}.${SUFFIX}"
-    echo checking subdir $subdir with hashfile ${hashfile}
+    #echo checking subdir $subdir with hashfile ${hashfile}
     if [ ! -f "${hashfile}" -o "${subdir}" -nt "${hashfile}" ]; then
-        /bin/echo -n "d:" > "${hashfile}"
+        /bin/echo -n "d|" > "${hashfile}"
         cat "${subdir}"/*.${SUFFIX} 2> /dev/null | sort | hashfunction >> "${hashfile}"
     fi
 }
+
 function create_filehash() {
     file="${1}"
     hashfile="${file}.${SUFFIX}"
     if [ ! -f "${hashfile}" -o "${file}" -nt "${hashfile}" ]; then
-        /bin/echo -n "f:" > "${hashfile}"
+        #/bin/echo -n "f|" > "${hashfile}"
         cat "${file}" | hashfunction >> "${hashfile}"
     fi
 }
@@ -56,7 +57,7 @@ function hash_directory() {
         exit 1
     fi
 
-    echo hashing all files in ${root}...
+    #echo hashing all files in ${root}...
     find "$root" -type f  | grep -v ".${SUFFIX}$" | while read f; do 
         basefile=`basename "$f"`
         skip=0
@@ -72,6 +73,7 @@ function hash_directory() {
         create_filehash "${f}"
     done
 
+    return
     depth=`dir_depth "$root"`
 
     while [ $depth -gt 0 ]; do
@@ -97,23 +99,32 @@ function clean_hashes() {
     rm -f ${root}.${SUFFIX}
 }
 
+function append() {
+
+    while read l; do 
+        echo $l; 
+    done
+    echo $@
+}
+
 function prescribe_cmds() {
     root="$1"
 
     find "$root" -name "*.${SUFFIX}" | while read hashfile; do 
         dir=`dirname "${hashfile}"`
         file=`basename "${hashfile}" .${SUFFIX}`
-        sourcefile="${dir}/${file}"
         hash=`cat "${hashfile}"`
-        echo $hash\|$sourcefile
+        echo ${hash}\|${dir}/${file}
     done
+    
+    
 }
 
 function usage() {
     cat << EOF
 dedup.sh usage:
 
-    dedup.sh <cmd> <cmdArgs>
+    dedup.sh <dir> <cmd1> <cmd2> ... <cmdN>
 
 where <cmd> is one of:
     hd      (hash directories):     hash all the files and directories in a directory
@@ -121,6 +132,7 @@ where <cmd> is one of:
     pc      (prescribe commands):   generate a list of commands to resolve dups
 
 EOF
+    exit 1
 }
 
 
@@ -130,17 +142,17 @@ function process_cmd () {
     case $cmd in
         hd )
             shift
-            echo hashing ${dir}
+            #echo hashing ${dir}
             hash_directory "${dir}"
             ;;
         cd )
             shift
-            echo cleaning ${dir}
+            #echo cleaning ${dir}
             clean_hashes "${dir}"
             ;;
         pc )
             shift
-            echo prescribing commands for ${dir}
+            #echo prescribing commands for ${dir}
             prescribe_cmds "${dir}"
             ;;
         *)
@@ -149,8 +161,14 @@ function process_cmd () {
     esac
 }
 
-
+if [ $# -lt 2 -o "${1}" = '-?' -o "${1}" = '-h' ]; then
+    usage
+fi
 dir="${1}"
+if [ ! -d "${dir}" ]; then
+    echo ${dir} is not a directory.
+    usage
+fi
 shift
 cmds=$@
 for cmd in ${cmds}; do
