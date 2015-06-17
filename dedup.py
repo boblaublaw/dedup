@@ -41,24 +41,23 @@ class dirobj:
             print f.dirname + '/' + f.name + " with hash " + f.hashval
         for name, d in self.subdirs.iteritems():
             d.display()
-        print '/'.join(self.getLineage())
+        print '/'.join(self.getLineage()) + " with hash " + self.hashval
 
-    def digest(self):
-        children={}
+    def computeDigests(self):
+        digests=[]
         for name, f in self.files.iteritems():
-            children[name]=f.hashval
+            digests.append(f.hashval)
         for name, d in self.subdirs.iteritems():
-            children[name]=d.digest()
+            digests.append(d.computeDigests())
 
+        digests.sort()
         h=hashlib.new("sha1")
-        childkeys=children.keys()
-        childkeys.sort()
-        for c in childkeys:
-            h.update(children[c])
-
-        hexdigest=h.hexdigest()
-        print "directory " + '/'.join(self.getLineage()) + " hashes to " + hexdigest
-        return hexdigest
+        for d in digests:
+            #print "adding digest " + d 
+            h.update(d)
+        self.hashval=h.hexdigest()
+        #print "directory " + '/'.join(self.getLineage()) + " hashes to " + hexdigest
+        return self.hashval
         
 
 root=dirobj(".")
@@ -75,7 +74,6 @@ if len(root.subdirs) == 1:
     for name, d in root.subdirs.iteritems():
         root=d
 
+root.computeDigests()
 root.display()
-
-print root.digest()
 
