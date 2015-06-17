@@ -35,7 +35,7 @@ function create_dirhash() {
     hashfile="${subdir}.${SUFFIX}"
     #echo checking subdir $subdir with hashfile ${hashfile}
     if [ ! -f "${hashfile}" -o "${subdir}" -nt "${hashfile}" ]; then
-        /bin/echo -n "d|" > "${hashfile}"
+        #/bin/echo -n "d|" > "${hashfile}"
         cat "${subdir}"/*.${SUFFIX} 2> /dev/null | sort | hashfunction >> "${hashfile}"
     fi
 }
@@ -73,7 +73,6 @@ function hash_directory() {
         create_filehash "${f}"
     done
 
-    return
     depth=`dir_depth "$root"`
 
     while [ $depth -gt 0 ]; do
@@ -116,8 +115,6 @@ function prescribe_cmds() {
         hash=`cat "${hashfile}"`
         echo ${hash}\|${dir}/${file}
     done
-    
-    
 }
 
 function usage() {
