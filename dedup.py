@@ -16,6 +16,7 @@ class dirObj():
         self.files={}
         self.subdirs={}
         self.parent=parent
+        self.pathname = '/'.join(self.getLineage()) 
 
     def getLineage(self):
         if self.parent == None:
@@ -25,11 +26,11 @@ class dirObj():
         return ancestry
     
     def display(self):
-        print 'Directory ' + '/'.join(self.getLineage())
         for name, entry in self.subdirs.iteritems():
             entry.display()
         for name, entry in self.files.iteritems():
             entry.display();
+        print 'Directory\t' + self.pathname + ' with hash ' + self.hexdigest
 
     def placeDir(self, dirName):
         #print "looking to place " +  dirName + " in " + self.name
@@ -53,6 +54,18 @@ class dirObj():
     def placeFile(self, fileName, parent = None):
         self.files[fileName]=fileObj(fileName, self)
     
+    def close(self):
+        digests=[]
+        for filename, file_entry in self.files.iteritems():
+            digests.append(file_entry.hexdigest)
+        for dirname, dir_entry in self.subdirs.iteritems():
+            digests.append(dir_entry.hexdigest)
+        digests.sort()
+        sha1 = hashlib.sha1()
+        for d in digests:
+            sha1.update(d)
+        self.hexdigest=sha1.hexdigest()
+    
 class fileObj():
     def __init__(self, name, parent=None):
         self.name=name;
@@ -62,7 +75,6 @@ class fileObj():
         else:
             self.pathname=self.name
 
-        h=hashlib.new("sha1")
         # open and read the file
         sha1 = hashlib.sha1()
         with open(self.pathname, 'rb') as f:
@@ -74,13 +86,13 @@ class fileObj():
         self.hexdigest=sha1.hexdigest()
     
     def display(self):
-        print 'File ' + self.pathname + ' with hash ' + self.hexdigest + ' ' + str(os.stat(self.pathname))
+        print 'File\t\t' + self.pathname + ' with hash ' + self.hexdigest # + ' ' + str(os.stat(self.pathname))
 
 sys.argv.pop(0)
 
 for entry in sys.argv:
     if os.path.isfile(entry):
-        print 'Found a file:\t\t' + entry
+        #print 'Found a file:\t\t' + entry
         topLevelList[entry]=(fileObj(entry))
     elif os.path.isdir(entry):
         topDirEntry=dirObj(entry)
@@ -88,14 +100,14 @@ for entry in sys.argv:
         for dirName, subdirList, fileList in os.walk(entry, topdown=False):
             dirEntry=topDirEntry.placeDir(dirName)
             for fname in fileList:
-                print('\t\t\t%s/%s' % (dirName, fname))
+                #print('\t\t\t%s/%s' % (dirName, fname))
                 dirEntry.placeFile(fname)
-            print('Found directory:\t%s' % dirName)
+            #print('Found directory:\t%s' % dirName)
+            dirEntry.close()
     else:
         print "I don't know what this is" + entry
 
 print
 for name, entry in topLevelList.iteritems():
     entry.display()
-
 
