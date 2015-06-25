@@ -4,6 +4,8 @@ import hashlib
 import os
 import sys
  
+BUF_SIZE = 65536  
+
 # Set the directory you want to start from
 
 topLevelList = {}
@@ -55,13 +57,25 @@ class fileObj():
     def __init__(self, name, parent=None):
         self.name=name;
         self.parent=parent
+        if self.parent != None:
+            self.pathname='/'.join(self.parent.getLineage()) + '/' + self.name
+        else:
+            self.pathname=self.name
+
+        h=hashlib.new("sha1")
+        # open and read the file
+        sha1 = hashlib.sha1()
+        with open(self.pathname, 'rb') as f:
+            while True:
+                data = f.read(BUF_SIZE)
+                if not data:
+                    break
+                sha1.update(data)
+        self.hexdigest=sha1.hexdigest()
     
     def display(self):
-        if self.parent != None:
-            print "File " + '/'.join(self.parent.getLineage()) + '/' + self.name
-        else:
-            print "File " + self.name
-    
+        print 'File ' + self.pathname + ' with hash ' + self.hexdigest + ' ' + str(os.stat(self.pathname))
+
 sys.argv.pop(0)
 
 for entry in sys.argv:
