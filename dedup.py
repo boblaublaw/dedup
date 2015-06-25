@@ -30,7 +30,7 @@ class dirObj():
             entry.display()
         for name, entry in self.files.iteritems():
             entry.display();
-        print 'Directory\t' + self.pathname + ' with hash ' + self.hexdigest
+        print 'Directory\t' + self.hexdigest + ' ' + self.pathname 
 
     def placeDir(self, dirName):
         #print "looking to place " +  dirName + " in " + self.name
@@ -86,7 +86,7 @@ class fileObj():
         self.hexdigest=sha1.hexdigest()
     
     def display(self):
-        print 'File\t\t' + self.pathname + ' with hash ' + self.hexdigest # + ' ' + str(os.stat(self.pathname))
+        print 'File\t\t' + self.hexdigest + ' ' + self.pathname # + ' ' + str(os.stat(self.pathname))
 
 sys.argv.pop(0)
 
