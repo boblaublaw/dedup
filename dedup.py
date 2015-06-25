@@ -1,79 +1,60 @@
 #!/usr/bin/env python
 
-import fileinput
 import hashlib
+import os
+ 
+# Set the directory you want to start from
 
-class fileobj:
-    def __init__(self, hashtype, hashval, pathname):
-        parts=pathname.split("/")
-        self.name=parts.pop()
-        self.ancestry=parts
-        self.dirname='/'.join(parts)
-        #print "created a file " + self.name + " in dir " + self.dirname
-        self.hashval=hashval
-        self.hashtype=hashtype
+inputList = [ 'work_usb', 'test', 'dedup.py' ] 
+topLevelList = {}
 
-class dirobj:
-    def __init__(self, name=None, parent=None):
+class dirObj():
+    def __init__(self, pathname):
+        self.pathname=pathname
         self.files={}
         self.subdirs={}
-        self.name=name
-        self.parent=parent
 
-    def placeFile(self, f):
-        if len(f.ancestry):
-            oldest=f.ancestry.pop(0)
-            if (oldest not in self.subdirs):
-                self.subdirs[oldest]=dirobj(oldest, self)
-            self.subdirs[oldest].placeFile(f)
-        else:
-            self.files[f.name]=f
-
-    def getLineage(self):
-        if self.parent == None:
-            return [ self.name ]
-        ancestry=self.parent.getLineage()
-        ancestry.append(self.name)
-        return ancestry
-
-    def display(self):
-        for name, f in self.files.iteritems():
-            print f.dirname + '/' + f.name + " with hash " + f.hashval
-        for name, d in self.subdirs.iteritems():
-            d.display()
-        print '/'.join(self.getLineage()) + " with hash " + self.hashval
-
-    def computeDigests(self):
-        digests=[]
-        for name, f in self.files.iteritems():
-            digests.append(f.hashval)
-        for name, d in self.subdirs.iteritems():
-            digests.append(d.computeDigests())
-
-        digests.sort()
-        h=hashlib.new("sha1")
-        for d in digests:
-            #print "adding digest " + d 
-            h.update(d)
-        self.hashval=h.hexdigest()
-        #print "directory " + '/'.join(self.getLineage()) + " hashes to " + hexdigest
-        return self.hashval
+    def placeDir(self, dirName):
+        print "looking to place " +  dirName + " in " + self.pathname
+        dirList=dirName.split('/')
+        if dirList.pop(0) != self.pathname:
+            raise LookupError
         
+        if len(dirList) == 0:
+            return self
 
-root=dirobj(".")
+        nextDirName=dirList[0]
+        if nextDirName in self.subdirs:
+            print "found " + nextDirName + " in " + self.pathname
+            return self.subdirs[nextDirName].placeDir('/'.join(dirList))
 
-for line in fileinput.input():
-    fields = line.split('|');
-    hashtype=fields[0]
-    hashval=fields[1]
-    pathname=fields[2].rstrip()
-    f=fileobj(hashtype, hashval, pathname)
-    root.placeFile(f)
-      
-if len(root.subdirs) == 1:
-    for name, d in root.subdirs.iteritems():
-        root=d
+        print "did not find " + nextDirName + " in " + self.pathname
+        nextDir=dirObj(nextDirName)
+        self.subdirs[nextDirName]=nextDir
+        return nextDir.placeDir('/'.join(dirList))
 
-root.computeDigests()
-root.display()
+    def placeFile(self, fileName):
+        self.files[fileName]=fileObj(fileName)
+    
+class fileObj():
+    def __init__(self, name):
+        self.name=name;
+    
+for entry in inputList: 
+    if os.path.isfile(entry):
+        print 'Found a file:\t\t' + entry
+        topLevelList[entry]=(fileObj(entry))
+    elif os.path.isdir(entry):
+        topDirEntry=dirObj(entry)
+        topLevelList[entry]=topDirEntry
+        for dirName, subdirList, fileList in os.walk(entry, topdown=False):
+            dirEntry=topDirEntry.placeDir(dirName)
+            for fname in fileList:
+                print('\t\t\t%s/%s' % (dirName, fname))
+                #dirEntry.placeFile(fname)
+            print('Found directory:\t%s' % dirName)
+    else:
+        print "I don't know what this is" + entry
+
+
 
