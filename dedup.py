@@ -19,6 +19,15 @@ class HashMap:
             for entry in list:
                 entry.display(False, False)
 
+    def prune(self):
+        # removes deleted objects from the hashMap
+        for hashval, list in self.m.iteritems():
+            newlist=[]
+            for entry in list:
+                if not entry.deleted:
+                    newlist.append(entry)
+            self.m[hashval]=newlist
+
 class DirObj():
     def __init__(self, name, parent=None):
         self.name=name
@@ -26,11 +35,13 @@ class DirObj():
         self.deleted=False
         self.subdirs={}
         self.parent=parent
-        self.pathname = '/'.join(self.get_lineage()) 
+        ancestry=self.get_lineage()
+        self.pathname='/'.join(ancestry) 
+        self.depth=len(ancestry)
 
     def get_lineage(self):
         if self.parent == None:
-            return [ self.name ]
+            return self.name.split('/')
         ancestry=self.parent.get_lineage()
         ancestry.append(self.name)
         return ancestry
@@ -42,7 +53,7 @@ class DirObj():
         if contents:
             for name, entry in self.files.iteritems():
                 entry.display(contents, recurse);
-        print 'Directory\t' + str(self.deleted) + '\t' + self.hexdigest + ' ' + self.pathname 
+        print 'Directory\t' + str(self.deleted) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname 
 
     def place_dir(self, inputDirName):
         #print "looking to place " +  inputDirName + " in " + self.name
@@ -71,6 +82,13 @@ class DirObj():
 
     def place_file(self, fileName, parent = None):
         self.files[fileName]=FileObj(fileName, self)
+
+    def delete(self):
+        self.deleted=True
+        for name, d in self.subdirs.iteritems:
+            d.delete()
+        for name, f in self.files.iteritems:
+            f.delete()
     
     def close(self):
         digests=[]
@@ -90,10 +108,12 @@ class FileObj():
         self.name=name;
         self.parent=parent
         self.deleted=False
+        ancestry=self.parent.get_lineage()
         if self.parent != None:
-            self.pathname='/'.join(self.parent.get_lineage()) + '/' + self.name
+            self.pathname='/'.join(ancestry) + '/' + self.name
         else:
             self.pathname=self.name
+        self.depth=len(ancestry)
 
         # open and read the file
         sha1 = hashlib.sha1()
@@ -106,8 +126,11 @@ class FileObj():
         self.hexdigest=sha1.hexdigest()
         h.addEntry(self.hexdigest, self)
 
+    def delete(self):
+        self.deleted=True
+
     def display(self, contents=False, recurse=False):
-        print 'File\t\t' + str(self.deleted) + '\t' + self.hexdigest + ' ' + self.pathname # + ' ' + str(os.stat(self.pathname))
+        print 'File\t\t' + str(self.deleted) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname # + ' ' + str(os.stat(self.pathname))
 
 topLevelList = {}
 BUF_SIZE = 65536  
@@ -133,6 +156,3 @@ for entry in sys.argv:
         print "I don't know what this is" + entry
 
 h.display()
-
-
-
