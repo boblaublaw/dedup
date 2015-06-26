@@ -19,6 +19,27 @@ class HashMap:
             for entry in list:
                 entry.display(False, False)
 
+    def delete(self, entry):
+        # mark this entry (and any children) as deleted
+        entry.delete()
+
+        # remove the entry from the hashmap
+        list=self.m[entry.hashval]
+        newlist = []
+        for e in list:
+            if e != entry:
+                newlist.append(e)
+
+        # if there are no more entries for this hashval, remove
+        # it from the dictionary m
+        if len(newlist):
+            self.m[entry.hashval] = newlist
+        else:
+            del self.m[entry.hashval]
+
+        # also remove all the deleted children from the hashmap
+        self.prune()
+
     def prune(self):
         # removes deleted objects from the hashMap
         for hashval, list in self.m.iteritems():
@@ -45,6 +66,19 @@ class DirObj():
         ancestry=self.parent.get_lineage()
         ancestry.append(self.name)
         return ancestry
+
+    def max_depth(self):
+        md=self.depth
+        if len(self.subdirs.keys()):
+            for name, entry in self.subdirs.iteritems():
+                td = entry.max_depth()
+                if td > md:
+                    md=td
+            return md
+        elif len(self.files.keys()):
+            return md + 1
+        else:
+            return md
     
     def display(self, contents=False, recurse=False):
         if recurse:
@@ -113,7 +147,7 @@ class FileObj():
             self.pathname='/'.join(ancestry) + '/' + self.name
         else:
             self.pathname=self.name
-        self.depth=len(ancestry)
+        self.depth=len(ancestry) + 1
 
         # open and read the file
         sha1 = hashlib.sha1()
@@ -135,9 +169,8 @@ class FileObj():
 topLevelList = {}
 BUF_SIZE = 65536  
 h=HashMap()
-
 sys.argv.pop(0)
-
+maxDepth=1      # i assume at least one file or dir here
 # walk argv adding files and directories
 for entry in sys.argv:
     # TODO strip trailing slashes
@@ -152,7 +185,11 @@ for entry in sys.argv:
             for fname in fileList:
                 dirEntry.place_file(fname)
             dirEntry.close()
+        td=topDirEntry.max_depth()
+        if maxDepth < td:
+            maxDepth=td
     else:
         print "I don't know what this is" + entry
 
 h.display()
+print 'max depth is ' + str(maxDepth)
