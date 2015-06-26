@@ -4,15 +4,43 @@ import hashlib
 import os
 import sys
 
+def resolve_candidates(candidates, currentDepth):
+    depthMap={}
+    losers = []
+    for candidate in candidates:
+        if candidate.depth > currentDepth:
+            continue
+        if candidate.depth not in depthMap:
+            depthMap[candidate.depth] = candidate
+        else:
+            incumbent = depthMap[candidate.depth]
+            if len(incumbent.name) > len(candidate.name):
+                depthMap[candidate.depth] = candidate
+            
+    k=depthMap.keys()
+    if len(k) == 0:
+        return losers
+
+    k.sort()
+    md=k.pop(0)
+    winner=depthMap[md]
+    for candidate in candidates:
+        if candidate != winner:
+            losers.append(candidate)
+    return losers
+        
 class HashMap:
     def __init__(self):
         self.m = {}
 
-    def addEntry(self, hashval, entry):
-        if hashval in self.m:
-            self.m[hashval].append(entry)
+    def addEntry(self, entry):
+        # hash digest value
+        hv=entry.hexdigest
+        
+        if hv in self.m:
+            self.m[hv].append(entry)
         else:
-            self.m[hashval] = [ entry ]
+            self.m[hv] = [ entry ]
 
     def display(self):
         for hashval, list in self.m.iteritems():
@@ -24,7 +52,7 @@ class HashMap:
         entry.delete()
 
         # remove the entry from the hashmap
-        list=self.m[entry.hashval]
+        list=self.m[entry.hexdigest]
         newlist = []
         for e in list:
             if e != entry:
@@ -33,7 +61,7 @@ class HashMap:
         # if there are no more entries for this hashval, remove
         # it from the dictionary m
         if len(newlist):
-            self.m[entry.hashval] = newlist
+            self.m[entry.hexdigest] = newlist
         else:
             del self.m[entry.hashval]
 
@@ -48,6 +76,23 @@ class HashMap:
                 if not entry.deleted:
                     newlist.append(entry)
             self.m[hashval]=newlist
+
+    def resolve(self, maxDepth):
+        # no need to resolve uniques, so remove them from the dict
+        deleteList=[]
+        for hashval, list in self.m.iteritems():
+            if len(list) == 1:
+                deleteList.append(hashval)
+        for e in deleteList:
+            del self.m[e]
+
+        for currentDepth in xrange(0,maxDepth+1):
+            for hashval, list in self.m.iteritems():
+                losers = resolve_candidates(list, currentDepth)
+                for loser in losers:
+                    self.delete(loser)
+                self.prune()
+
 
 class DirObj():
     def __init__(self, name, parent=None):
@@ -119,11 +164,34 @@ class DirObj():
 
     def delete(self):
         self.deleted=True
-        for name, d in self.subdirs.iteritems:
+        for name, d in self.subdirs.iteritems():
             d.delete()
-        for name, f in self.files.iteritems:
+        for name, f in self.files.iteritems():
             f.delete()
+
+    def prune(self):
+        changed=False
+
+        for name, d in self.subdirs.iteritems():
+            if not d.deleted:
+                changed |= d.prune()
+
+        empty=True
+        for name, d in self.subdirs.iteritems():
+            if d.deleted == False:
+                empty=False
+        for name, f in self.files.iteritems():
+            if f.deleted == False:
+                empty=False
+        if empty:
+            self.delete()
+            print 'deleting empty directory ' + self.pathname
+            changed=True
+
+        return changed
+
     
+
     def close(self):
         digests=[]
         for filename, file_entry in self.files.iteritems():
@@ -135,7 +203,7 @@ class DirObj():
         for d in digests:
             sha1.update(d)
         self.hexdigest=sha1.hexdigest()
-        h.addEntry(self.hexdigest, self)
+        h.addEntry(self)
     
 class FileObj():
     def __init__(self, name, parent=None):
@@ -158,10 +226,13 @@ class FileObj():
                     break
                 sha1.update(data)
         self.hexdigest=sha1.hexdigest()
-        h.addEntry(self.hexdigest, self)
+        h.addEntry(self)
 
     def delete(self):
         self.deleted=True
+
+    def prune(self):
+        return False            # can't prune a file
 
     def display(self, contents=False, recurse=False):
         print 'File\t\t' + str(self.deleted) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname # + ' ' + str(os.stat(self.pathname))
@@ -191,5 +262,12 @@ for entry in sys.argv:
     else:
         print "I don't know what this is" + entry
 
+h.resolve(maxDepth)
 h.display()
-print 'max depth is ' + str(maxDepth)
+for name, e in topLevelList.iteritems():
+    while e.prune():
+        pass
+print
+for name, e in topLevelList.iteritems():
+    e.display(True, True)
+
