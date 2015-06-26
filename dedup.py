@@ -4,11 +4,17 @@ import hashlib
 import os
 import sys
  
-BUF_SIZE = 65536  
-
 # Set the directory you want to start from
 
-topLevelList = {}
+class hashMap:
+    def __init__(self):
+        self.hm = {}
+
+    def addEntry(self, hashval, entry):
+        if hashval in self.hm:
+            self.hm[hashval].append(entry)
+        else:
+            self.hm[hashval] = [ entry ] 
 
 class dirObj():
     def __init__(self, name, parent=None):
@@ -25,11 +31,13 @@ class dirObj():
         ancestry.append(self.name)
         return ancestry
     
-    def display(self):
-        for name, entry in self.subdirs.iteritems():
-            entry.display()
-        for name, entry in self.files.iteritems():
-            entry.display();
+    def display(self, contents=True, recurse=True):
+        if recurse:
+            for name, entry in self.subdirs.iteritems():
+                entry.display()
+        if contents:
+            for name, entry in self.files.iteritems():
+                entry.display();
         print 'Directory\t' + self.hexdigest + ' ' + self.pathname 
 
     def placeDir(self, dirName):
@@ -65,6 +73,7 @@ class dirObj():
         for d in digests:
             sha1.update(d)
         self.hexdigest=sha1.hexdigest()
+        hm.addEntry(self.hexdigest, self)
     
 class fileObj():
     def __init__(self, name, parent=None):
@@ -84,9 +93,14 @@ class fileObj():
                     break
                 sha1.update(data)
         self.hexdigest=sha1.hexdigest()
+        hm.addEntry(self.hexdigest, self)
     
-    def display(self):
+    def display(self, contents=False, recurse=False):
         print 'File\t\t' + self.hexdigest + ' ' + self.pathname # + ' ' + str(os.stat(self.pathname))
+
+topLevelList = {}
+BUF_SIZE = 65536  
+hm=hashMap()
 
 sys.argv.pop(0)
 
@@ -107,7 +121,9 @@ for entry in sys.argv:
     else:
         print "I don't know what this is" + entry
 
-print
-for name, entry in topLevelList.iteritems():
-    entry.display()
+#for name, entry in topLevelList.iteritems():
+#    entry.display()
 
+for hashval, list in hm.hm.iteritems():
+    for entry in list:
+        entry.display(False, False)
