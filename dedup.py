@@ -31,6 +31,9 @@ def resolve_candidates(candidates, currentDepth=None):
         
 class HashMap:
     def __init__(self):
+        self.purge()
+
+    def purge(self):
         self.m = {}
 
     def addEntry(self, entry):
@@ -78,7 +81,10 @@ class HashMap:
             self.m[hashval]=newlist
 
     def resolve(self, maxDepth):
-        # no need to resolve uniques, so remove them from the dict
+        #print 'before'
+        #self.display() 
+        # no need to resolve uniques, so remove them from the dict 
+        print
         deleteList=[]
         for hashval, list in self.m.iteritems():
             if len(list) == 1:
@@ -95,14 +101,25 @@ class HashMap:
                     losers = resolve_candidates(list, currentDepth)
                     for loser in losers:
                         self.delete(loser)
-                        print 'delete directory ' + loser.pathname
+                        print 'deleting directory ' + loser.pathname
                     self.prune()
 
+        #print
+        #print 'after dir purge'
+        #self.display() 
+        #print
+
         for hashval, list in self.m.iteritems():
-            losers = resolve_candidates(list)
-            for loser in losers:
-                self.delete(loser)
-                print 'delete file ' + loser.pathname
+            example = list[0]  
+            if isinstance(example, FileObj):
+                losers = resolve_candidates(list)
+                for loser in losers:
+                    self.delete(loser)
+                    print 'deleting file ' + loser.pathname
+        #print
+        #print 'after file purge'
+        #self.display() 
+        #print
 
 class DirObj():
     def __init__(self, name, parent=None):
@@ -171,6 +188,7 @@ class DirObj():
 
     def place_file(self, fileName, parent = None):
         self.files[fileName]=FileObj(fileName, self)
+        return (self.files[fileName])
 
     def delete(self):
         self.deleted=True
@@ -200,8 +218,6 @@ class DirObj():
 
         return changed
 
-    
-
     def close(self):
         digests=[]
         for filename, file_entry in self.files.iteritems():
@@ -213,7 +229,6 @@ class DirObj():
         for d in digests:
             sha1.update(d)
         self.hexdigest=sha1.hexdigest()
-        h.addEntry(self)
     
 class FileObj():
     def __init__(self, name, parent=None):
@@ -236,7 +251,6 @@ class FileObj():
                     break
                 sha1.update(data)
         self.hexdigest=sha1.hexdigest()
-        h.addEntry(self)
 
     def delete(self):
         self.deleted=True
@@ -258,14 +272,17 @@ for entry in sys.argv:
     # TODO check for special files (sockets)
     if os.path.isfile(entry):
         topLevelList[entry]=FileObj(entry)
+        h.addEntry(topLevelList[entry])
     elif os.path.isdir(entry):
         topDirEntry=DirObj(entry)
         topLevelList[entry]=topDirEntry
         for dirName, subdirList, fileList in os.walk(entry, topdown=False):
             dirEntry=topDirEntry.place_dir(dirName)
             for fname in fileList:
-                dirEntry.place_file(fname)
+                fileEntry=dirEntry.place_file(fname)
+                h.addEntry(fileEntry)
             dirEntry.close()
+            h.addEntry(dirEntry)
         td=topDirEntry.max_depth()
         if maxDepth < td:
             maxDepth=td
@@ -273,11 +290,19 @@ for entry in sys.argv:
         print "I don't know what this is" + entry
 
 h.resolve(maxDepth)
-#h.display()
+
 for name, e in topLevelList.iteritems():
     while e.prune():
         pass
-print
+
 for name, e in topLevelList.iteritems():
     e.display(True, True)
+
+h.purge()
+for name, e in topLevelList.iteritems():
+    pass
+
+
+
+
 
