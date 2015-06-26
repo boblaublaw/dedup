@@ -4,11 +4,11 @@ import hashlib
 import os
 import sys
 
-def resolve_candidates(candidates, currentDepth):
+def resolve_candidates(candidates, currentDepth=None):
     depthMap={}
     losers = []
     for candidate in candidates:
-        if candidate.depth > currentDepth:
+        if currentDepth != None and candidate.depth > currentDepth:
             continue
         if candidate.depth not in depthMap:
             depthMap[candidate.depth] = candidate
@@ -86,13 +86,23 @@ class HashMap:
         for e in deleteList:
             del self.m[e]
 
+        # delete the directories first, in order of
+        # increasing depth
         for currentDepth in xrange(0,maxDepth+1):
             for hashval, list in self.m.iteritems():
-                losers = resolve_candidates(list, currentDepth)
-                for loser in losers:
-                    self.delete(loser)
-                self.prune()
+                example = list[0]
+                if isinstance(example, DirObj):
+                    losers = resolve_candidates(list, currentDepth)
+                    for loser in losers:
+                        self.delete(loser)
+                        print 'delete directory ' + loser.pathname
+                    self.prune()
 
+        for hashval, list in self.m.iteritems():
+            losers = resolve_candidates(list)
+            for loser in losers:
+                self.delete(loser)
+                print 'delete file ' + loser.pathname
 
 class DirObj():
     def __init__(self, name, parent=None):
@@ -263,7 +273,7 @@ for entry in sys.argv:
         print "I don't know what this is" + entry
 
 h.resolve(maxDepth)
-h.display()
+#h.display()
 for name, e in topLevelList.iteritems():
     while e.prune():
         pass
