@@ -107,7 +107,7 @@ class HashMap:
                     for loser in losers:
                         if not loser.deleted:
                             self.delete(loser)
-                            print 'deleting directory ' + loser.pathname + ' covered by ' + winner.pathname
+                            print 'rm -rf "' + loser.pathname + '" # covered by ' + winner.pathname
                     self.prune()
 
         #print
@@ -122,7 +122,7 @@ class HashMap:
                 for loser in losers:
                     if not loser.deleted:
                         self.delete(loser)
-                        print 'deleting file ' + loser.pathname + ' covered by ' + winner.pathname
+                        print 'rm "' + loser.pathname + '" # covered by ' + winner.pathname
         #print
         #print 'after file purge'
         #self.display() 
@@ -227,7 +227,7 @@ class DirObj():
                 empty=False
         if empty:
             self.delete()
-            print 'deleting empty directory ' + self.pathname
+            print 'rmdir "' + self.pathname + '"'
             changed=True
 
         return changed
