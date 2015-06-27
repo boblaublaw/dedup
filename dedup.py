@@ -190,6 +190,12 @@ class DirObj():
         self.files[fileName]=FileObj(fileName, self)
         return (self.files[fileName])
 
+    def walk(self):
+        for name, d in self.subdirs.iteritems():
+            for dirEntry, subdirs, files in d.walk():
+                yield dirEntry, subdirs, files
+        yield self, self.subdirs, self.files
+        
     def delete(self):
         self.deleted=True
         for name, d in self.subdirs.iteritems():
@@ -197,12 +203,12 @@ class DirObj():
         for name, f in self.files.iteritems():
             f.delete()
 
-    def prune(self):
+    def prune_empty(self):
         changed=False
 
         for name, d in self.subdirs.iteritems():
             if not d.deleted:
-                changed |= d.prune()
+                changed |= d.prune_empty()
 
         empty=True
         for name, d in self.subdirs.iteritems():
@@ -255,7 +261,10 @@ class FileObj():
     def delete(self):
         self.deleted=True
 
-    def prune(self):
+    def walk(self):             # cannot iterate over a file
+        pass
+
+    def prune_empty(self):
         return False            # can't prune a file
 
     def display(self, contents=False, recurse=False):
@@ -292,17 +301,15 @@ for entry in sys.argv:
 h.resolve(maxDepth)
 
 for name, e in topLevelList.iteritems():
-    while e.prune():
+    while e.prune_empty():
         pass
 
-for name, e in topLevelList.iteritems():
-    e.display(True, True)
-
 h.purge()
+
 for name, e in topLevelList.iteritems():
-    pass
+    for dirEntry, subdirs, files in e.walk():
+        dirEntry.display(recurse=False, contents=True)
 
-
-
-
+#for name, e in topLevelList.iteritems():
+#    e.display(True, True)
 
