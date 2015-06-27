@@ -3,6 +3,11 @@
 import hashlib
 import os
 import sys
+import stat
+
+def issocket(path):
+    mode = os.stat(path).st_mode
+    return stat.S_ISSOCK(mode)
 
 def resolve_candidates(candidates, currentDepth=None):
     depthMap={}
@@ -19,7 +24,7 @@ def resolve_candidates(candidates, currentDepth=None):
             
     k=depthMap.keys()
     if len(k) == 0:
-        return losers
+        return None, losers
 
     k.sort()
     md=k.pop(0)
@@ -27,7 +32,7 @@ def resolve_candidates(candidates, currentDepth=None):
     for candidate in candidates:
         if candidate != winner:
             losers.append(candidate)
-    return losers
+    return winner, losers
         
 class HashMap:
     def __init__(self):
@@ -98,11 +103,11 @@ class HashMap:
             for hashval, list in self.m.iteritems():
                 example = list[0]
                 if isinstance(example, DirObj):
-                    losers = resolve_candidates(list, currentDepth)
+                    winner, losers = resolve_candidates(list, currentDepth)
                     for loser in losers:
                         if not loser.deleted:
                             self.delete(loser)
-                            print 'deleting directory ' + loser.pathname
+                            print 'deleting directory ' + loser.pathname + ' covered by ' + winner.pathname
                     self.prune()
 
         #print
@@ -113,11 +118,11 @@ class HashMap:
         for hashval, list in self.m.iteritems():
             example = list[0]  
             if isinstance(example, FileObj):
-                losers = resolve_candidates(list)
+                winner, losers = resolve_candidates(list)
                 for loser in losers:
                     if not loser.deleted:
                         self.delete(loser)
-                        print 'deleting file ' + loser.pathname
+                        print 'deleting file ' + loser.pathname + ' covered by ' + winner.pathname
         #print
         #print 'after file purge'
         #self.display() 
@@ -302,13 +307,18 @@ for entry in sys.argv:
     # TODO check for special files (sockets)
     if os.path.isfile(entry):
         topLevelList[entry]=FileObj(entry)
+    elif issocket(entry):
+        print 'Skipping a socket ' + entry
     elif os.path.isdir(entry):
         topDirEntry=DirObj(entry)
         topLevelList[entry]=topDirEntry
         for dirName, subdirList, fileList in os.walk(entry, topdown=False):
             dirEntry=topDirEntry.place_dir(dirName)
             for fname in fileList:
-                fileEntry=dirEntry.place_file(fname)
+                if issocket(dirEntry.pathname + '/' + fname):
+                    print 'Skipping a socket ' + dirEntry.pathname + '/' + fname
+                else:
+                    fileEntry=dirEntry.place_file(fname)
     else:
         print "I don't know what this is" + entry
 
@@ -353,4 +363,7 @@ while deleted > 0:
     deleted=afterCount - prevCount
     #print str(deleted) + ' entries deleted'
 
+for name, e in topLevelList.iteritems():
+    pass
+    #e.display(True,True)
 
