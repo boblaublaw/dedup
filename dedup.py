@@ -143,9 +143,10 @@ class DirObj():
         md=self.depth
         if len(self.subdirs.keys()):
             for name, entry in self.subdirs.iteritems():
-                td = entry.max_depth()
-                if td > md:
-                    md=td
+                if not entry.deleted:
+                    td = entry.max_depth()
+                    if td > md:
+                        md=td
             return md
         elif len(self.files.keys()):
             return md + 1
@@ -192,9 +193,9 @@ class DirObj():
 
     def walk(self):
         for name, d in self.subdirs.iteritems():
-            for dirEntry, subdirs, files in d.walk():
-                yield dirEntry, subdirs, files
-        yield self, self.subdirs, self.files
+            for dirEntry in d.walk():
+                yield dirEntry
+        yield self
         
     def delete(self):
         self.deleted=True
@@ -304,12 +305,30 @@ for name, e in topLevelList.iteritems():
     while e.prune_empty():
         pass
 
+print "\nstarting over:"
 h.purge()
-
+maxDepth=1      # i assume at least one file or dir here
 for name, e in topLevelList.iteritems():
-    for dirEntry, subdirs, files in e.walk():
-        dirEntry.display(recurse=False, contents=True)
+    for dirEntry in e.walk():
+        if not dirEntry.deleted:
+            for name, fileEntry in e.files.iteritems():
+                if not fileEntry.deleted:
+                    h.addEntry(fileEntry)
+                    print 'added file ' + fileEntry.pathname
+                else:
+                    print 'skipping deleted file ' + fileEntry.pathname
+            dirEntry.close()
+            h.addEntry(dirEntry)
+            print 'added dir ' + dirEntry.pathname
+        else:
+            print 'skipping deleted dir ' + dirEntry.pathname
+    td=e.max_depth()
+    if maxDepth < td:
+        maxDepth=td
 
-#for name, e in topLevelList.iteritems():
-#    e.display(True, True)
+print "new maxdepth is " + str(maxDepth)
 
+h.resolve(maxDepth)
+for name, e in topLevelList.iteritems():
+    while e.prune_empty():
+        pass
