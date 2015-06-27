@@ -1,14 +1,20 @@
 #!/usr/bin/env python
 
-import hashlib
-import os
-import sys
-import stat
+import hashlib, os, sys, stat
 
+# TODO need ignore lists for files and dirs to disregard
+ignoreList = [ '.git', '.dropbox', '.DS_Store' ]
+
+# TODO need a flag to prune empty directories or not
+
+# TODO prune empty directories at their topmost level
+
+# for some reason python provides isfile and isdirectory but not issocket
 def issocket(path):
     mode = os.stat(path).st_mode
     return stat.S_ISSOCK(mode)
 
+# a helper function that determines which file/dir to keep and which to remove
 def resolve_candidates(candidates, currentDepth=None):
     depthMap={}
     losers = []
@@ -35,6 +41,7 @@ def resolve_candidates(candidates, currentDepth=None):
     return winner, losers
         
 class HashMap:
+    """A wrapper to a python dict with some helper functions"""
     def __init__(self):
         self.purge()
 
@@ -86,9 +93,6 @@ class HashMap:
             self.m[hashval]=newlist
 
     def resolve(self, maxDepth):
-        #print 'before'
-        #self.display() 
-        #print
         # no need to resolve uniques, so remove them from the dict 
         deleteList=[]
         for hashval, list in self.m.iteritems():
@@ -110,11 +114,6 @@ class HashMap:
                             print 'rm -rf "' + loser.pathname + '" # covered by ' + winner.pathname
                     self.prune()
 
-        #print
-        #print 'after dir purge'
-        #self.display() 
-        #print
-
         for hashval, list in self.m.iteritems():
             example = list[0]  
             if isinstance(example, FileObj):
@@ -123,12 +122,9 @@ class HashMap:
                     if not loser.deleted:
                         self.delete(loser)
                         print 'rm "' + loser.pathname + '" # covered by ' + winner.pathname
-        #print
-        #print 'after file purge'
-        #self.display() 
-        #print
 
 class DirObj():
+    """A directory object which can hold metadata and references to files and subdirectories"""
     def __init__(self, name, parent=None):
         self.name=name
         self.files={}
@@ -138,6 +134,7 @@ class DirObj():
         ancestry=self.get_lineage()
         self.pathname='/'.join(ancestry) 
         self.depth=len(ancestry)
+        self.ignore=self.name in ignoreList
 
     def get_lineage(self):
         if self.parent == None:
@@ -167,7 +164,7 @@ class DirObj():
         if contents:
             for name, entry in self.files.iteritems():
                 entry.display(contents, recurse);
-        print 'Directory\t' + str(self.deleted) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname 
+        print 'Directory\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname 
 
     def place_dir(self, inputDirName):
         #print "looking to place " +  inputDirName + " in " + self.name
@@ -198,11 +195,14 @@ class DirObj():
         self.files[fileName]=FileObj(fileName, self)
         return (self.files[fileName])
 
-    def walk(self):
+    def walk(self, topdown=False):
+        if topdown:
+            yield self
         for name, d in self.subdirs.iteritems():
             for dirEntry in d.walk():
                 yield dirEntry
-        yield self
+        if not topdown:
+            yield self
         
     def delete(self):
         self.deleted=True
@@ -211,13 +211,12 @@ class DirObj():
         for name, f in self.files.iteritems():
             f.delete()
 
+    # TODO prune_empty should rm -rf once at the TOP of a tree of empty dirs
     def prune_empty(self):
         changed=False
-
         for name, d in self.subdirs.iteritems():
             if not d.deleted:
                 changed |= d.prune_empty()
-
         empty=True
         for name, d in self.subdirs.iteritems():
             if d.deleted == False:
@@ -229,7 +228,6 @@ class DirObj():
             self.delete()
             print 'rmdir "' + self.pathname + '"'
             changed=True
-
         return changed
 
     def close(self):
@@ -257,6 +255,7 @@ class DirObj():
         return deleted
 
 class FileObj():
+    """A file object which stores some metadata"""
     def __init__(self, name, parent=None):
         self.name=name;
         self.parent=parent
@@ -277,18 +276,19 @@ class FileObj():
                     break
                 sha1.update(data)
         self.hexdigest=sha1.hexdigest()
+        self.ignore=self.name in ignoreList
 
     def delete(self):
         self.deleted=True
 
-    def walk(self):             # cannot iterate over a file
+    def walk(self, topdown=False):             # cannot iterate over a file
         pass
 
     def prune_empty(self):
         return False            # can't prune a file
 
     def display(self, contents=False, recurse=False):
-        print 'File\t\t' + str(self.deleted) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname # + ' ' + str(os.stat(self.pathname))
+        print 'File\t\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname # + ' ' + str(os.stat(self.pathname))
 
     def count_deletedi(self):
         if self.deleted:
@@ -328,20 +328,20 @@ while deleted > 0:
     maxDepth=1      # i assume at least one file or dir here
     for name, e in topLevelList.iteritems():
         for dirEntry in e.walk():
-            #print '\nadding dir ' + dirEntry.pathname
+            #print '\n# adding dir ' + dirEntry.pathname
             if not dirEntry.deleted:
                 for name, fileEntry in dirEntry.files.iteritems():
                     if not fileEntry.deleted:
                         h.addEntry(fileEntry)
-                        #print 'added file ' + fileEntry.pathname
+                        #print '# added file ' + fileEntry.pathname
                     else:
-                        #print 'skipping deleted file ' + fileEntry.pathname
+                        #print '# skipping deleted file ' + fileEntry.pathname
                         pass
                 dirEntry.close()
                 h.addEntry(dirEntry)
-                #print 'added dir ' + dirEntry.pathname
+                #print '# added dir ' + dirEntry.pathname
             else:
-                #print 'skipping deleted dir ' + dirEntry.pathname
+                #print '# skipping deleted dir ' + dirEntry.pathname
                 pass
         td=e.max_depth()
         if maxDepth < td:
@@ -361,9 +361,9 @@ while deleted > 0:
         afterCount = afterCount + e.count_deleted()
 
     deleted=afterCount - prevCount
-    #print str(deleted) + ' entries deleted'
+    print '# ' + str(deleted) + ' entries deleted'
 
 for name, e in topLevelList.iteritems():
     pass
-    #e.display(True,True)
+#    e.display(True,True)
 
