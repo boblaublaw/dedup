@@ -83,8 +83,8 @@ class HashMap:
     def resolve(self, maxDepth):
         #print 'before'
         #self.display() 
+        #print
         # no need to resolve uniques, so remove them from the dict 
-        print
         deleteList=[]
         for hashval, list in self.m.iteritems():
             if len(list) == 1:
@@ -100,8 +100,9 @@ class HashMap:
                 if isinstance(example, DirObj):
                     losers = resolve_candidates(list, currentDepth)
                     for loser in losers:
-                        self.delete(loser)
-                        print 'deleting directory ' + loser.pathname
+                        if not loser.deleted:
+                            self.delete(loser)
+                            print 'deleting directory ' + loser.pathname
                     self.prune()
 
         #print
@@ -114,8 +115,9 @@ class HashMap:
             if isinstance(example, FileObj):
                 losers = resolve_candidates(list)
                 for loser in losers:
-                    self.delete(loser)
-                    print 'deleting file ' + loser.pathname
+                    if not loser.deleted:
+                        self.delete(loser)
+                        print 'deleting file ' + loser.pathname
         #print
         #print 'after file purge'
         #self.display() 
@@ -236,7 +238,19 @@ class DirObj():
         for d in digests:
             sha1.update(d)
         self.hexdigest=sha1.hexdigest()
-    
+
+    def count_deleted(self):
+        if self.deleted:
+            deleted=1
+        else:
+            deleted=0
+        for name, d in self.subdirs.iteritems():
+            deleted = deleted + d.count_deleted()
+        for name, f in self.files.iteritems():
+            if f.deleted:
+                deleted = deleted + 1
+        return deleted
+
 class FileObj():
     def __init__(self, name, parent=None):
         self.name=name;
@@ -271,6 +285,12 @@ class FileObj():
     def display(self, contents=False, recurse=False):
         print 'File\t\t' + str(self.deleted) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname # + ' ' + str(os.stat(self.pathname))
 
+    def count_deletedi(self):
+        if self.deleted:
+            return 1
+        else:
+            return 0
+
 topLevelList = {}
 BUF_SIZE = 65536  
 h=HashMap()
@@ -282,7 +302,6 @@ for entry in sys.argv:
     # TODO check for special files (sockets)
     if os.path.isfile(entry):
         topLevelList[entry]=FileObj(entry)
-        h.addEntry(topLevelList[entry])
     elif os.path.isdir(entry):
         topDirEntry=DirObj(entry)
         topLevelList[entry]=topDirEntry
@@ -290,45 +309,48 @@ for entry in sys.argv:
             dirEntry=topDirEntry.place_dir(dirName)
             for fname in fileList:
                 fileEntry=dirEntry.place_file(fname)
-                h.addEntry(fileEntry)
-            dirEntry.close()
-            h.addEntry(dirEntry)
-        td=topDirEntry.max_depth()
-        if maxDepth < td:
-            maxDepth=td
     else:
         print "I don't know what this is" + entry
 
-h.resolve(maxDepth)
+deleted=1
+while deleted > 0:
+    h.purge()
+    maxDepth=1      # i assume at least one file or dir here
+    for name, e in topLevelList.iteritems():
+        for dirEntry in e.walk():
+            #print '\nadding dir ' + dirEntry.pathname
+            if not dirEntry.deleted:
+                for name, fileEntry in dirEntry.files.iteritems():
+                    if not fileEntry.deleted:
+                        h.addEntry(fileEntry)
+                        #print 'added file ' + fileEntry.pathname
+                    else:
+                        #print 'skipping deleted file ' + fileEntry.pathname
+                        pass
+                dirEntry.close()
+                h.addEntry(dirEntry)
+                #print 'added dir ' + dirEntry.pathname
+            else:
+                #print 'skipping deleted dir ' + dirEntry.pathname
+                pass
+        td=e.max_depth()
+        if maxDepth < td:
+            maxDepth=td
 
-for name, e in topLevelList.iteritems():
-    while e.prune_empty():
-        pass
+    prevCount=0
+    for name, e in topLevelList.iteritems():
+        prevCount = prevCount + e.count_deleted()
 
-print "\nstarting over:"
-h.purge()
-maxDepth=1      # i assume at least one file or dir here
-for name, e in topLevelList.iteritems():
-    for dirEntry in e.walk():
-        if not dirEntry.deleted:
-            for name, fileEntry in e.files.iteritems():
-                if not fileEntry.deleted:
-                    h.addEntry(fileEntry)
-                    print 'added file ' + fileEntry.pathname
-                else:
-                    print 'skipping deleted file ' + fileEntry.pathname
-            dirEntry.close()
-            h.addEntry(dirEntry)
-            print 'added dir ' + dirEntry.pathname
-        else:
-            print 'skipping deleted dir ' + dirEntry.pathname
-    td=e.max_depth()
-    if maxDepth < td:
-        maxDepth=td
+    h.resolve(maxDepth)
+    for name, e in topLevelList.iteritems():
+        while e.prune_empty():
+            pass
 
-print "new maxdepth is " + str(maxDepth)
+    afterCount=0
+    for name, e in topLevelList.iteritems():
+        afterCount = afterCount + e.count_deleted()
 
-h.resolve(maxDepth)
-for name, e in topLevelList.iteritems():
-    while e.prune_empty():
-        pass
+    deleted=afterCount - prevCount
+    #print str(deleted) + ' entries deleted'
+
+
