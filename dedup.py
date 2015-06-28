@@ -211,31 +211,33 @@ class DirObj():
         for name, f in self.files.iteritems():
             f.delete()
 
-    # TODO prune_empty should rm -rf once at the TOP of a tree of empty dirs
+    def is_empty(self):
+        # TODO what to do with ignored files/dirs?
+
+        if len(self.files.keys()) > 0:
+            return False
+
+        for dirName, subdir in self.subdirs.iteritems():
+            if not subdir.is_empty():
+                return False
+        return True
+
     def prune_empty(self):
-        changed=False
-        for name, d in self.subdirs.iteritems():
-            if not d.deleted:
-                changed |= d.prune_empty()
-        empty=True
-        for name, d in self.subdirs.iteritems():
-            if d.deleted == False:
-                empty=False
-        for name, f in self.files.iteritems():
-            if f.deleted == False:
-                empty=False
-        if empty:
+        # find the highest empty nodes in the tree
+        #print '# checking ' + self.pathname + ' for empties'
+        if self.is_empty() and not self.deleted and self.parent != None and not self.parent.is_empty():
+            print 'rm -rf ' + self.pathname + " # top of empty directory tree"
             self.delete()
-            print 'rmdir "' + self.pathname + '"'
-            changed=True
-        return changed
+        else:
+            for dirname, dirEntry in self.subdirs.iteritems():
+                dirEntry.prune_empty()
 
     def close(self):
         digests=[]
-        for filename, file_entry in self.files.iteritems():
-            digests.append(file_entry.hexdigest)
-        for dirname, dir_entry in self.subdirs.iteritems():
-            digests.append(dir_entry.hexdigest)
+        for filename, fileEntry in self.files.iteritems():
+            digests.append(fileEntry.hexdigest)
+        for dirname, dirEntry in self.subdirs.iteritems():
+            digests.append(dirEntry.hexdigest)
         digests.sort()
         sha1 = hashlib.sha1()
         for d in digests:
@@ -353,8 +355,7 @@ while deleted > 0:
 
     h.resolve(maxDepth)
     for name, e in topLevelList.iteritems():
-        while e.prune_empty():
-            pass
+        e.prune_empty()
 
     afterCount=0
     for name, e in topLevelList.iteritems():
