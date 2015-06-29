@@ -5,8 +5,6 @@ import hashlib, os, sys, stat
 # TODO need ignore lists for files and dirs to disregard
 ignoreList = [ '.git', '.dropbox', '.DS_Store' ]
 
-# TODO need a flag to prune empty directories or not
-
 # for some reason python provides isfile and isdirectory but not issocket
 def issocket(path):
     mode = os.stat(path).st_mode
@@ -36,6 +34,7 @@ def resolve_candidates(candidates, currentDepth=None):
     md=k.pop(0)
     # we choose the candidate closest to the root 
     # deeper candidates are the losers
+    # TODO other criteria?
     winner=depthMap[md]
 
     if isinstance(winner, DirObj) and winner.is_empty():
@@ -46,7 +45,7 @@ def resolve_candidates(candidates, currentDepth=None):
             losers.append(candidate)
     return winner, losers
         
-class TopLevelList:
+class EntryList:
     def __init__(self, argv):
         self.contents = {}
         # walk argv adding files and directories
@@ -78,18 +77,18 @@ class TopLevelList:
 
     def prune_empty(self):
         prevCount = self.count_deleted()
-        for name, e in tll.contents.iteritems():
+        for name, e in allFiles.contents.iteritems():
             e.prune_empty()
-        return tll.count_deleted() - prevCount
+        return allFiles.count_deleted() - prevCount
 
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
-    def __init__(self,tll):
+    def __init__(self,allFiles):
         self.m = {}
         self.maxDepth = 1 # we assume at least one file or dir
-        self.tll=tll
+        self.allFiles=allFiles # we will use this later to count deletions
 
-        for name, e in tll.contents.iteritems():
+        for name, e in allFiles.contents.iteritems():
             if isinstance(e, FileObj):
                 self.addEntry(e)
                 continue
@@ -160,7 +159,7 @@ class HashMap:
 
     def resolve(self):
 
-        prevCount = self.tll.count_deleted()
+        prevCount = self.allFiles.count_deleted()
 
         # no need to resolve uniques, so remove them from the dict 
         deleteList=[]
@@ -177,11 +176,12 @@ class HashMap:
                 example = list[0]
                 if isinstance(example, DirObj):
                     winner, losers = resolve_candidates(list, currentDepth)
-                    for loser in losers:
-                        if not loser.deleted:
-                            self.delete(loser)
-                            print 'rm -rf "' + loser.pathname + '" # covered by ' + winner.pathname
-                    self.prune()
+                    if losers != None:
+                        for loser in losers:
+                            if not loser.deleted:
+                                self.delete(loser)
+                                print 'rm -rf "' + loser.pathname + '" # covered by ' + winner.pathname
+                        self.prune()
 
         for hashval, list in self.m.iteritems():
             example = list[0]  
@@ -192,7 +192,7 @@ class HashMap:
                         self.delete(loser)
                         print 'rm "' + loser.pathname + '" # covered by ' + winner.pathname
 
-        return self.tll.count_deleted() - prevCount
+        return self.allFiles.count_deleted() - prevCount
 
 class DirObj():
     """A directory object which can hold metadata and references to files and subdirectories"""
@@ -372,27 +372,31 @@ class FileObj():
             return 0
 
 BUF_SIZE = 65536  
-sys.argv.pop(0)
+sys.argv.pop(0)             # do away with the command itself
 
-tll = TopLevelList(sys.argv)
+if sys.argv[0] == '-np' or sys.argv[0] == '--no-prune-empty-directories':
+    pruneDirectories=False
+    sys.argv.pop(0)
+else:
+    pruneDirectories=True
 
-deleted=1
+allFiles = EntryList(sys.argv)
 
-while deleted > 0:
+deleted=1                   # fake value to get the loop started
+while deleted > 0:          # while things are still being removed, keep working
 
-    h = HashMap(tll)
-    deletedDirectories = tll.prune_empty()
+    if pruneDirectories:
+        h = HashMap(allFiles)
+        deletedDirectories = allFiles.prune_empty()
+    else:
+        deletedDirectories=0
 
-    h = HashMap(tll)
+    h = HashMap(allFiles)
     deletedHashMatches = h.resolve()
 
     deleted = deletedDirectories + deletedHashMatches
-
     print '# ' + str(deleted) + ' entries deleted'
 
-
-    for name, e in tll.contents.iteritems():
-        pass
-        #e.display(True,True)
-
-
+for name, e in allFiles.contents.iteritems():
+    pass
+    #e.display(True,True)
