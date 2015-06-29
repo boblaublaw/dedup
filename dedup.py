@@ -3,7 +3,7 @@
 import hashlib, os, sys, stat
 
 # TODO need ignore lists for files and dirs to disregard
-ignoreList = [ '.git', '.dropbox', '.DS_Store' ]
+ignoreList = [ "Icon\r", '.git', '.dropbox.cache', '.DS_Store' ]
 
 # for some reason python provides isfile and isdirectory but not issocket
 def issocket(path):
@@ -161,7 +161,6 @@ class HashMap:
             self.m[hashval]=newlist
 
     def resolve(self):
-
         prevCount = self.allFiles.count_deleted()
 
         # no need to resolve uniques, so remove them from the dict 
@@ -184,6 +183,7 @@ class HashMap:
                             if not loser.deleted:
                                 self.delete(loser)
                                 #print 'rm -rf "' + loser.pathname + '" # covered by ' + winner.pathname
+                                loser.reason = 'dir covered by "' + winner.pathname + '"'
                         self.prune()
 
         for hashval, list in self.m.iteritems():
@@ -194,6 +194,7 @@ class HashMap:
                     if not loser.deleted:
                         self.delete(loser)
                         #print 'rm "' + loser.pathname + '" # covered by ' + winner.pathname
+                        loser.reason = 'file covered by "' + winner.pathname + '"'
 
         return self.allFiles.count_deleted() - prevCount
 
@@ -203,6 +204,7 @@ class DirObj():
         self.name=name
         self.files={}
         self.deleted=False
+        self.reason=""
         self.subdirs={}
         self.parent=parent
         ancestry=self.get_lineage()
@@ -238,7 +240,7 @@ class DirObj():
         if contents:
             for name, entry in self.files.iteritems():
                 entry.display(contents, recurse);
-        print '# Directory\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname 
+        print '# Directory\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname + ' ' + self.reason
 
     def place_dir(self, inputDirName):
         #print "looking to place " +  inputDirName + " in " + self.name
@@ -286,8 +288,8 @@ class DirObj():
             f.delete()
 
     def generate_commands(self):
-        if self.deleted:
-            print 'rm -rf "' + self.pathname + '"'
+        if self.deleted and not self.ignore:
+            print 'rm -rf "' + self.pathname + '" # ' + self.reason
         else:
             for fileName, fileEntry in self.files.iteritems():
                 fileEntry.generate_commands()
@@ -311,6 +313,7 @@ class DirObj():
         if self.is_empty() and not self.deleted and self.parent != None and not self.parent.is_empty():
             #print 'rm -rf "' + self.pathname + '" # top of empty directory tree'
             self.delete()
+            self.reason = "empty directory"
         else:
             #print '# ' + self.pathname + ' is not empty' + str(self.is_empty())
             for dirname, dirEntry in self.subdirs.iteritems():
@@ -344,6 +347,7 @@ class FileObj():
     """A file object which stores some metadata"""
     def __init__(self, name, parent=None):
         self.name=name;
+        self.reason=""
         self.parent=parent
         self.deleted=False
         if self.parent != None:
@@ -369,8 +373,8 @@ class FileObj():
         self.deleted=True
 
     def generate_commands(self):
-        if self.deleted:
-            print 'rm "' + self.pathname + '"'
+        if self.deleted and not self.ignore:
+            print 'rm "' + self.pathname + '" # ' + self.reason
 
     def walk(self, topdown=False):             # cannot iterate over a file
         pass
@@ -379,7 +383,7 @@ class FileObj():
         return False            # can't prune a file
 
     def display(self, contents=False, recurse=False):
-        print '# File\t\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname # + ' ' + str(os.stat(self.pathname))
+        print '# File\t\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname + ' ' + self.reason
 
     def count_deleted(self):
         if self.deleted:
