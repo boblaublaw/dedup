@@ -7,17 +7,22 @@ ignoreList = [ '.git', '.dropbox', '.DS_Store' ]
 
 # TODO need a flag to prune empty directories or not
 
-# TODO prune empty directories at their topmost level
-
 # for some reason python provides isfile and isdirectory but not issocket
 def issocket(path):
     mode = os.stat(path).st_mode
     return stat.S_ISSOCK(mode)
 
+def count_deleted(topLevelList):
+    count=0
+    for name, e in topLevelList.iteritems():
+        count = count + e.count_deleted()
+    return count
+
 # a helper function that determines which file/dir to keep and which to remove
 def resolve_candidates(candidates, currentDepth=None):
     depthMap={}
     losers = []
+
     for candidate in candidates:
         if currentDepth != None and candidate.depth > currentDepth:
             continue
@@ -25,27 +30,83 @@ def resolve_candidates(candidates, currentDepth=None):
             depthMap[candidate.depth] = candidate
         else:
             incumbent = depthMap[candidate.depth]
-            if len(incumbent.name) > len(candidate.name):
+            if len(incumbent.pathname) > len(candidate.pathname):
                 depthMap[candidate.depth] = candidate
             
     k=depthMap.keys()
     if len(k) == 0:
+        # nothing to resolve at this depth
         return None, losers
 
     k.sort()
     md=k.pop(0)
+    # we choose the candidate closest to the root 
+    # deeper candidates are the losers
     winner=depthMap[md]
+
+    if isinstance(winner, DirObj) and winner.is_empty():
+        return None, None
+
     for candidate in candidates:
         if candidate != winner:
             losers.append(candidate)
     return winner, losers
         
+def parse_argv(argv):
+    topLevelList = {}
+    # walk argv adding files and directories
+    for entry in argv:
+        # TODO strip trailing slashes
+        # TODO check for special files (sockets)
+        if os.path.isfile(entry):
+            topLevelList[entry]=FileObj(entry)
+        elif issocket(entry):
+            print 'Skipping a socket ' + entry
+        elif os.path.isdir(entry):
+            topDirEntry=DirObj(entry)
+            topLevelList[entry]=topDirEntry
+            for dirName, subdirList, fileList in os.walk(entry, topdown=False):
+                dirEntry=topDirEntry.place_dir(dirName)
+                for fname in fileList:
+                    if issocket(dirEntry.pathname + '/' + fname):
+                        print 'Skipping a socket ' + dirEntry.pathname + '/' + fname
+                    else:
+                        fileEntry=dirEntry.place_file(fname)
+        else:
+            print "I don't know what this is" + entry
+    return topLevelList
+
+def build_hash_map(topLevelList):
+    maxDepth=1 # we assume at least one file or dir
+    h=HashMap()
+    for name, e in topLevelList.iteritems():
+        if isinstance(e, FileObj):
+            h.addEntry(e)
+            continue
+        for dirEntry in e.walk():
+            #print '\n# adding dir ' + dirEntry.pathname
+            if not dirEntry.deleted:
+                for name, fileEntry in dirEntry.files.iteritems():
+                    if not fileEntry.deleted:
+                        h.addEntry(fileEntry)
+                        #print '# added file ' + fileEntry.pathname
+                    else:
+                        #print '# skipping deleted file ' + fileEntry.pathname
+                        pass
+                dirEntry.close()
+                h.addEntry(dirEntry)
+                #print '# added dir ' + dirEntry.pathname
+            else:
+                #print '# skipping deleted dir ' + dirEntry.pathname
+                pass
+        td=e.max_depth()
+        if maxDepth < td:
+            maxDepth=td
+    return h, maxDepth
+
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
     def __init__(self):
-        self.purge()
-
-    def purge(self):
         self.m = {}
 
     def addEntry(self, entry):
@@ -164,7 +225,7 @@ class DirObj():
         if contents:
             for name, entry in self.files.iteritems():
                 entry.display(contents, recurse);
-        print 'Directory\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname 
+        print '# Directory\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname 
 
     def place_dir(self, inputDirName):
         #print "looking to place " +  inputDirName + " in " + self.name
@@ -213,12 +274,12 @@ class DirObj():
 
     def is_empty(self):
         # TODO what to do with ignored files/dirs?
-
-        if len(self.files.keys()) > 0:
-            return False
+        for fileName, fileEntry in self.files.iteritems():
+            if not fileEntry.deleted:
+                return False
 
         for dirName, subdir in self.subdirs.iteritems():
-            if not subdir.is_empty():
+            if not subdir.deleted and not subdir.is_empty():
                 return False
         return True
 
@@ -229,6 +290,7 @@ class DirObj():
             print 'rm -rf ' + self.pathname + " # top of empty directory tree"
             self.delete()
         else:
+            #print '# ' + self.pathname + ' is not empty' + str(self.is_empty())
             for dirname, dirEntry in self.subdirs.iteritems():
                 dirEntry.prune_empty()
 
@@ -262,12 +324,13 @@ class FileObj():
         self.name=name;
         self.parent=parent
         self.deleted=False
-        ancestry=self.parent.get_lineage()
         if self.parent != None:
+            ancestry=self.parent.get_lineage()
             self.pathname='/'.join(ancestry) + '/' + self.name
+            self.depth=len(ancestry) + 1
         else:
             self.pathname=self.name
-        self.depth=len(ancestry) + 1
+            self.depth=0
 
         # open and read the file
         sha1 = hashlib.sha1()
@@ -290,81 +353,43 @@ class FileObj():
         return False            # can't prune a file
 
     def display(self, contents=False, recurse=False):
-        print 'File\t\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname # + ' ' + str(os.stat(self.pathname))
+        print '# File\t\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname # + ' ' + str(os.stat(self.pathname))
 
-    def count_deletedi(self):
+    def count_deleted(self):
         if self.deleted:
             return 1
         else:
             return 0
 
-topLevelList = {}
 BUF_SIZE = 65536  
-h=HashMap()
 sys.argv.pop(0)
-maxDepth=1      # i assume at least one file or dir here
-# walk argv adding files and directories
-for entry in sys.argv:
-    # TODO strip trailing slashes
-    # TODO check for special files (sockets)
-    if os.path.isfile(entry):
-        topLevelList[entry]=FileObj(entry)
-    elif issocket(entry):
-        print 'Skipping a socket ' + entry
-    elif os.path.isdir(entry):
-        topDirEntry=DirObj(entry)
-        topLevelList[entry]=topDirEntry
-        for dirName, subdirList, fileList in os.walk(entry, topdown=False):
-            dirEntry=topDirEntry.place_dir(dirName)
-            for fname in fileList:
-                if issocket(dirEntry.pathname + '/' + fname):
-                    print 'Skipping a socket ' + dirEntry.pathname + '/' + fname
-                else:
-                    fileEntry=dirEntry.place_file(fname)
-    else:
-        print "I don't know what this is" + entry
+
+topLevelList = parse_argv(sys.argv)
 
 deleted=1
+
 while deleted > 0:
-    h.purge()
-    maxDepth=1      # i assume at least one file or dir here
-    for name, e in topLevelList.iteritems():
-        for dirEntry in e.walk():
-            #print '\n# adding dir ' + dirEntry.pathname
-            if not dirEntry.deleted:
-                for name, fileEntry in dirEntry.files.iteritems():
-                    if not fileEntry.deleted:
-                        h.addEntry(fileEntry)
-                        #print '# added file ' + fileEntry.pathname
-                    else:
-                        #print '# skipping deleted file ' + fileEntry.pathname
-                        pass
-                dirEntry.close()
-                h.addEntry(dirEntry)
-                #print '# added dir ' + dirEntry.pathname
-            else:
-                #print '# skipping deleted dir ' + dirEntry.pathname
-                pass
-        td=e.max_depth()
-        if maxDepth < td:
-            maxDepth=td
+    h, maxDepth = build_hash_map(topLevelList)
 
-    prevCount=0
-    for name, e in topLevelList.iteritems():
-        prevCount = prevCount + e.count_deleted()
+    prevCount = count_deleted(topLevelList)
 
-    h.resolve(maxDepth)
     for name, e in topLevelList.iteritems():
         e.prune_empty()
 
-    afterCount=0
-    for name, e in topLevelList.iteritems():
-        afterCount = afterCount + e.count_deleted()
+    deleted = count_deleted(topLevelList) - prevCount
 
-    deleted=afterCount - prevCount
+    h, maxDepth = build_hash_map(topLevelList)
+
+    prevCount = count_deleted(topLevelList)
+
+    h.resolve(maxDepth)
+
+    deleted = deleted + count_deleted(topLevelList) - prevCount
+
     print '# ' + str(deleted) + ' entries deleted'
 
-for name, e in topLevelList.iteritems():
-    pass
-#    e.display(True,True)
+    for name, e in topLevelList.iteritems():
+        pass
+        #e.display(True,True)
+
 
