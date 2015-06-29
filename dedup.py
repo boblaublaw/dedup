@@ -51,7 +51,6 @@ class EntryList:
         # walk argv adding files and directories
         for entry in argv:
             # TODO strip trailing slashes
-            # TODO check for special files (sockets)
             if os.path.isfile(entry):
                 self.contents[entry]=FileObj(entry)
             elif issocket(entry):
@@ -80,6 +79,10 @@ class EntryList:
         for name, e in allFiles.contents.iteritems():
             e.prune_empty()
         return allFiles.count_deleted() - prevCount
+
+    def generate_commands(self):
+        for name, e in allFiles.contents.iteritems():
+            e.generate_commands()
 
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
@@ -180,7 +183,7 @@ class HashMap:
                         for loser in losers:
                             if not loser.deleted:
                                 self.delete(loser)
-                                print 'rm -rf "' + loser.pathname + '" # covered by ' + winner.pathname
+                                #print 'rm -rf "' + loser.pathname + '" # covered by ' + winner.pathname
                         self.prune()
 
         for hashval, list in self.m.iteritems():
@@ -190,7 +193,7 @@ class HashMap:
                 for loser in losers:
                     if not loser.deleted:
                         self.delete(loser)
-                        print 'rm "' + loser.pathname + '" # covered by ' + winner.pathname
+                        #print 'rm "' + loser.pathname + '" # covered by ' + winner.pathname
 
         return self.allFiles.count_deleted() - prevCount
 
@@ -282,6 +285,15 @@ class DirObj():
         for name, f in self.files.iteritems():
             f.delete()
 
+    def generate_commands(self):
+        if self.deleted:
+            print 'rm -rf "' + self.pathname + '"'
+        else:
+            for fileName, fileEntry in self.files.iteritems():
+                fileEntry.generate_commands()
+            for dirName, subdir in self.subdirs.iteritems():
+                subdir.generate_commands()
+
     def is_empty(self):
         # TODO what to do with ignored files/dirs?
         for fileName, fileEntry in self.files.iteritems():
@@ -297,7 +309,7 @@ class DirObj():
         # find the highest empty nodes in the tree
         #print '# checking ' + self.pathname + ' for empties'
         if self.is_empty() and not self.deleted and self.parent != None and not self.parent.is_empty():
-            print 'rm -rf "' + self.pathname + '" # top of empty directory tree'
+            #print 'rm -rf "' + self.pathname + '" # top of empty directory tree'
             self.delete()
         else:
             #print '# ' + self.pathname + ' is not empty' + str(self.is_empty())
@@ -356,6 +368,10 @@ class FileObj():
     def delete(self):
         self.deleted=True
 
+    def generate_commands(self):
+        if self.deleted:
+            print 'rm "' + self.pathname + '"'
+
     def walk(self, topdown=False):             # cannot iterate over a file
         pass
 
@@ -382,6 +398,7 @@ else:
 
 allFiles = EntryList(sys.argv)
 
+passCount=0
 deleted=1                   # fake value to get the loop started
 while deleted > 0:          # while things are still being removed, keep working
 
@@ -395,8 +412,12 @@ while deleted > 0:          # while things are still being removed, keep working
     deletedHashMatches = h.resolve()
 
     deleted = deletedDirectories + deletedHashMatches
-    print '# ' + str(deleted) + ' entries deleted'
+    passCount = passCount + 1
+    if deleted > 0:
+        print '# ' + str(deleted) + ' entries deleted on pass ' + str(passCount)
 
-for name, e in allFiles.contents.iteritems():
-    pass
-    #e.display(True,True)
+allFiles.generate_commands()
+
+#for name, e in allFiles.contents.iteritems():
+#    pass
+#    e.display(True,True)
