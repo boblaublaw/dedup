@@ -46,6 +46,7 @@ def resolve_candidates(candidates, currentDepth=None):
     return winner, losers
         
 class EntryList:
+    """a container for all source directories and files to examine"""
     def __init__(self, argv):
         self.contents = {}
         # walk argv adding files and directories
@@ -86,27 +87,31 @@ class EntryList:
 
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
-    def __init__(self,allFiles):
-        self.m = {}
+    def __init__(self,allFiles, databasePathname):
+        self.contentHash = {}
+        self.pathnameHash = {}
         self.maxDepth = 1 # we assume at least one file or dir
         self.allFiles=allFiles # we will use this later to count deletions
 
+        if databasePathname != None:
+            pass
+
         for name, e in allFiles.contents.iteritems():
             if isinstance(e, FileObj):
-                self.addEntry(e)
+                self.add_entry(e)
                 continue
             for dirEntry in e.walk():
                 #print '\n# adding dir ' + dirEntry.pathname
                 if not dirEntry.deleted:
                     for name, fileEntry in dirEntry.files.iteritems():
                         if not fileEntry.deleted:
-                            self.addEntry(fileEntry)
+                            self.add_entry(fileEntry)
                             #print '# added file ' + fileEntry.pathname
                         else:
                             #print '# skipping deleted file ' + fileEntry.pathname
                             pass
                     dirEntry.close()
-                    self.addEntry(dirEntry)
+                    self.add_entry(dirEntry)
                     #print '# added dir ' + dirEntry.pathname
                 else:
                     #print '# skipping deleted dir ' + dirEntry.pathname
@@ -116,17 +121,19 @@ class HashMap:
                 self.maxDepth=td
 
 
-    def addEntry(self, entry):
+    def add_entry(self, entry):
         # hash digest value
         hv=entry.hexdigest
         
-        if hv in self.m:
-            self.m[hv].append(entry)
+        self.pathnameHash[entry.pathname] = entry
+
+        if hv in self.contentHash:
+            self.contentHash[hv].append(entry)
         else:
-            self.m[hv] = [ entry ]
+            self.contentHash[hv] = [ entry ]
 
     def display(self):
-        for hashval, list in self.m.iteritems():
+        for hashval, list in self.contentHash.iteritems():
             for entry in list:
                 entry.display(False, False)
 
@@ -135,7 +142,7 @@ class HashMap:
         entry.delete()
 
         # remove the entry from the hashmap
-        list=self.m[entry.hexdigest]
+        list=self.contentHash[entry.hexdigest]
         newlist = []
         for e in list:
             if e != entry:
@@ -144,37 +151,37 @@ class HashMap:
         # if there are no more entries for this hashval, remove
         # it from the dictionary m
         if len(newlist):
-            self.m[entry.hexdigest] = newlist
+            self.contentHash[entry.hexdigest] = newlist
         else:
-            del self.m[entry.hashval]
+            del self.contentHash[entry.hashval]
 
         # also remove all the deleted children from the hashmap
         self.prune()
 
     def prune(self):
         # removes deleted objects from the hashMap
-        for hashval, list in self.m.iteritems():
+        for hashval, list in self.contentHash.iteritems():
             newlist=[]
             for entry in list:
                 if not entry.deleted:
                     newlist.append(entry)
-            self.m[hashval]=newlist
+            self.contentHash[hashval]=newlist
 
     def resolve(self):
         prevCount = self.allFiles.count_deleted()
 
         # no need to resolve uniques, so remove them from the dict 
         deleteList=[]
-        for hashval, list in self.m.iteritems():
+        for hashval, list in self.contentHash.iteritems():
             if len(list) == 1:
                 deleteList.append(hashval)
         for e in deleteList:
-            del self.m[e]
+            del self.contentHash[e]
 
         # delete the directories first, in order of
         # increasing depth
         for currentDepth in xrange(0,self.maxDepth+1):
-            for hashval, list in self.m.iteritems():
+            for hashval, list in self.contentHash.iteritems():
                 example = list[0]
                 if isinstance(example, DirObj):
                     winner, losers = resolve_candidates(list, currentDepth)
@@ -186,7 +193,7 @@ class HashMap:
                                 loser.reason = 'dir covered by "' + winner.pathname + '"'
                         self.prune()
 
-        for hashval, list in self.m.iteritems():
+        for hashval, list in self.contentHash.iteritems():
             example = list[0]  
             if isinstance(example, FileObj):
                 winner, losers = resolve_candidates(list)
@@ -313,7 +320,7 @@ class DirObj():
         if self.is_empty() and not self.deleted and self.parent != None and not self.parent.is_empty():
             #print 'rm -rf "' + self.pathname + '" # top of empty directory tree'
             self.delete()
-            self.reason = "empty directory"
+            self.reason = "non-unique or empty directory"
         else:
             #print '# ' + self.pathname + ' is not empty' + str(self.is_empty())
             for dirname, dirEntry in self.subdirs.iteritems():
@@ -393,12 +400,24 @@ class FileObj():
 
 BUF_SIZE = 65536  
 sys.argv.pop(0)             # do away with the command itself
+# defaults
+pruneDirectories=True
+databasePathname=None
+again=True
+while again:
+    nextArg=sys.argv[0]     # peek ahead
+    again=False
+    if nextArg == '-np' or nextArg == '--no-prune-empty-directories':
+        pruneDirectories=False
+        sys.argv.pop(0)
+        again=True
+    elif nextArg == '-db' or nextArg == '--database':
+        sys.argv.pop(0)
+        databasePathname=sys.argv.pop(0)
+        again=True
 
-if sys.argv[0] == '-np' or sys.argv[0] == '--no-prune-empty-directories':
-    pruneDirectories=False
-    sys.argv.pop(0)
-else:
-    pruneDirectories=True
+if databasePathname != None:
+    print 'set to load hashes from ' + databasePathname
 
 allFiles = EntryList(sys.argv)
 
@@ -407,12 +426,12 @@ deleted=1                   # fake value to get the loop started
 while deleted > 0:          # while things are still being removed, keep working
 
     if pruneDirectories:
-        h = HashMap(allFiles)
+        h = HashMap(allFiles, databasePathname)
         deletedDirectories = allFiles.prune_empty()
     else:
         deletedDirectories=0
 
-    h = HashMap(allFiles)
+    h = HashMap(allFiles, databasePathname)
     deletedHashMatches = h.resolve()
 
     deleted = deletedDirectories + deletedHashMatches
