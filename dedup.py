@@ -76,38 +76,43 @@ class TopLevelList:
             count = count + e.count_deleted()
         return count
 
-    def build_hash_map(self):
-        maxDepth=1 # we assume at least one file or dir
-        h=HashMap()
-        for name, e in self.contents.iteritems():
+    def prune_empty(self):
+        prevCount = self.count_deleted()
+        for name, e in tll.contents.iteritems():
+            e.prune_empty()
+        return tll.count_deleted() - prevCount
+
+class HashMap:
+    """A wrapper to a python dict with some helper functions"""
+    def __init__(self,tll):
+        self.m = {}
+        self.maxDepth = 1 # we assume at least one file or dir
+        self.tll=tll
+
+        for name, e in tll.contents.iteritems():
             if isinstance(e, FileObj):
-                h.addEntry(e)
+                self.addEntry(e)
                 continue
             for dirEntry in e.walk():
                 #print '\n# adding dir ' + dirEntry.pathname
                 if not dirEntry.deleted:
                     for name, fileEntry in dirEntry.files.iteritems():
                         if not fileEntry.deleted:
-                            h.addEntry(fileEntry)
+                            self.addEntry(fileEntry)
                             #print '# added file ' + fileEntry.pathname
                         else:
                             #print '# skipping deleted file ' + fileEntry.pathname
                             pass
                     dirEntry.close()
-                    h.addEntry(dirEntry)
+                    self.addEntry(dirEntry)
                     #print '# added dir ' + dirEntry.pathname
                 else:
                     #print '# skipping deleted dir ' + dirEntry.pathname
                     pass
             td=e.max_depth()
-            if maxDepth < td:
-                maxDepth=td
-        return h, maxDepth
+            if self.maxDepth < td:
+                self.maxDepth=td
 
-class HashMap:
-    """A wrapper to a python dict with some helper functions"""
-    def __init__(self):
-        self.m = {}
 
     def addEntry(self, entry):
         # hash digest value
@@ -153,7 +158,10 @@ class HashMap:
                     newlist.append(entry)
             self.m[hashval]=newlist
 
-    def resolve(self, maxDepth):
+    def resolve(self):
+
+        prevCount = self.tll.count_deleted()
+
         # no need to resolve uniques, so remove them from the dict 
         deleteList=[]
         for hashval, list in self.m.iteritems():
@@ -164,7 +172,7 @@ class HashMap:
 
         # delete the directories first, in order of
         # increasing depth
-        for currentDepth in xrange(0,maxDepth+1):
+        for currentDepth in xrange(0,self.maxDepth+1):
             for hashval, list in self.m.iteritems():
                 example = list[0]
                 if isinstance(example, DirObj):
@@ -183,6 +191,8 @@ class HashMap:
                     if not loser.deleted:
                         self.delete(loser)
                         print 'rm "' + loser.pathname + '" # covered by ' + winner.pathname
+
+        return self.tll.count_deleted() - prevCount
 
 class DirObj():
     """A directory object which can hold metadata and references to files and subdirectories"""
@@ -369,24 +379,17 @@ tll = TopLevelList(sys.argv)
 deleted=1
 
 while deleted > 0:
-    h, maxDepth = tll.build_hash_map()
 
-    prevCount = tll.count_deleted()
+    h = HashMap(tll)
+    deletedDirectories = tll.prune_empty()
 
-    for name, e in tll.contents.iteritems():
-        e.prune_empty()
+    h = HashMap(tll)
+    deletedHashMatches = h.resolve()
 
-    deleted = tll.count_deleted() - prevCount
-
-    h, maxDepth = tll.build_hash_map()
-
-    prevCount = tll.count_deleted()
-
-    h.resolve(maxDepth)
-
-    deleted = deleted + tll.count_deleted() - prevCount
+    deleted = deletedDirectories + deletedHashMatches
 
     print '# ' + str(deleted) + ' entries deleted'
+
 
     for name, e in tll.contents.iteritems():
         pass
