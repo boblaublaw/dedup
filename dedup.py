@@ -32,7 +32,6 @@ def resolve_candidates(candidates, currentDepth=None):
             # found another candidate at the same depth
             incumbent = depthMap[candidate.depth]
             # use pathname length as a tie-breaker
-            # TODO - need more tie breakers?
             if len(incumbent.pathname) > len(candidate.pathname):
                 depthMap[candidate.depth] = candidate
             
@@ -82,7 +81,8 @@ class EntryList:
 
         # walk argv adding files and directories
         for entry in argv:
-            # TODO strip trailing slashes
+            # strip trailing slashes, they are not needed
+            entry=entry.rstrip('/')
             if os.path.isfile(entry):
                 self.contents[entry]=FileObj(entry, dbTime=self.modTime, db=self.db)
             elif issocket(entry):
