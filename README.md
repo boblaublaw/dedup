@@ -12,6 +12,18 @@ This project is similar to several of these projects in a few ways:
 
 However, unlike these other projects, this project has a few additional features I found to be absent.
 
+## Utilization
+
+```
+dedup.py [ options ] path1 path2 path3 ... > commands.sh  # generate command list
+vi commands.sh                                            # review command list
+sh commands.sh                                            # execute commands
+
+Where path can be any file or directory and where options can be:
+ * -db/--database path_to_db_file       - cache hash results in a database for faster re-runs on large dirs
+ * -np/--no-prune                       - do not remove empty directories
+```
+
 ## Features
 
 ### Comparing And Removing Redundant Directories
