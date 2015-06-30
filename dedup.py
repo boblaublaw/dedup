@@ -504,7 +504,7 @@ if __name__ == '__main__':
     while again:
         nextArg=sys.argv[0]     # peek ahead
         again=False
-        if nextArg == '-np' or nextArg == '--no-prune-empty-directories':
+        if nextArg == '-np' or nextArg == '--no-prune':
             pruneDirectories=False
             sys.argv.pop(0)
             again=True
