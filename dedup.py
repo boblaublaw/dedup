@@ -2,39 +2,53 @@
 
 import hashlib, os, sys, stat, anydbm, time
 
+# Constants:
 # TODO need ignore lists for files and dirs to disregard
 ignoreList = [ "Icon\r", '.git', '.dropbox.cache', '.DS_Store' ]
+BUF_SIZE = 65536  
 
-# for some reason python provides isfile and isdirectory but not issocket
 def issocket(path):
+    """For some reason python provides isfile and isdirectory but not issocket"""
     mode = os.stat(path).st_mode
     return stat.S_ISSOCK(mode)
 
-# a helper function that determines which file/dir to keep and which to remove
 def resolve_candidates(candidates, currentDepth=None):
+    """Helper function which examines a list of candidate objects with identical
+    contents (as determined elsewhere) to determine which of the candidates is
+    the "keeper" (or winner).  The other candidates are designated losers.
+
+    The winner is selected by incrementally incrasing the directory depth (from 0)
+    until one of the candidates is encountered. 
+
+    TODO - other criteria?
+    """
     depthMap={}
     losers = []
 
     for candidate in candidates:
         if currentDepth != None and candidate.depth > currentDepth:
+            # this candidate is too deep
             continue
         if candidate.depth not in depthMap:
+            # encountered a new candidate, lets store it
             depthMap[candidate.depth] = candidate
         else:
+            # found another candidate at the same depth
             incumbent = depthMap[candidate.depth]
+            # use pathname length as a tie-breaker
+            # TODO - need more tie breakers?
             if len(incumbent.pathname) > len(candidate.pathname):
                 depthMap[candidate.depth] = candidate
             
     k=depthMap.keys()
     if len(k) == 0:
         # nothing to resolve at this depth
-        return None, losers
+        return None, None
 
     k.sort()
     md=k.pop(0)
     # we choose the candidate closest to the root 
     # deeper candidates are the losers
-    # TODO other criteria?
     winner=depthMap[md]
 
     if isinstance(winner, DirObj) and winner.is_empty():
@@ -46,24 +60,25 @@ def resolve_candidates(candidates, currentDepth=None):
     return winner, losers
         
 class EntryList:
-    """a container for all source directories and files to examine"""
+    """A container for all source directories and files to examine"""
     def __init__(self, argv, databasePathname):
         self.contents = {}
         self.modTime = None
         self.db = None
 
-        try:
-            self.modTime = os.stat(databasePathname + '.db').st_mtime
-        except OSError:
-            print "# db " + databasePathname + ".db doesn't exist yet"
-            self.modTime = None
-
         if databasePathname != None:
+            try:
+                self.modTime = os.stat(databasePathname + '.db').st_mtime
+            except OSError:
+                print "# db " + databasePathname + ".db doesn't exist yet"
+                self.modTime = None
+
             self.db = anydbm.open(databasePathname, 'c')
             if self.modTime == None:
                 self.modTime = time.time()
 
-        print '# db modTime is ' + str(time.time() - self.modTime) + ' seconds ago'
+            print '# db modTime is ' + str(time.time() - self.modTime) + ' seconds ago'
+
         # walk argv adding files and directories
         for entry in argv:
             # TODO strip trailing slashes
@@ -87,19 +102,22 @@ class EntryList:
         if self.db != None:
             self.db.close()
 
-    def count_deleted(self):
+    def count_deleted(self):            # EntryList.count_deleted
+        """Returns a count of all the deleted objects within"""
         count=0
         for name, e in self.contents.iteritems():
             count = count + e.count_deleted()
         return count
 
-    def prune_empty(self):
+    def prune_empty(self):              # EntryList.prune_empty
+        """Crawls through all directories and deletes the children of the deleted"""
         prevCount = self.count_deleted()
         for name, e in allFiles.contents.iteritems():
             e.prune_empty()
         return allFiles.count_deleted() - prevCount
 
     def generate_commands(self):
+        """Generates delete commands to dedup all contents"""
         for name, e in allFiles.contents.iteritems():
             e.generate_commands()
 
@@ -124,7 +142,7 @@ class HashMap:
                         else:
                             #print '# skipping deleted file ' + fileEntry.pathname
                             pass
-                    dirEntry.close()
+                    dirEntry.finalize()
                     self.add_entry(dirEntry)
                     #print '# added dir ' + dirEntry.pathname
                 else:
@@ -134,22 +152,22 @@ class HashMap:
             if self.maxDepth < td:
                 self.maxDepth=td
 
-    def add_entry(self, entry):
-        # hash digest value
-        hv=entry.hexdigest
-        
-        if hv in self.contentHash:
-            self.contentHash[hv].append(entry)
+    def add_entry(self, entry):                 # Hashmap.add_entry
+        """Store a file or directory in the HashMap, indexed by it's hash"""
+        if entry.hexdigest in self.contentHash:
+            self.contentHash[entry.hexdigest].append(entry)
         else:
-            self.contentHash[hv] = [ entry ]
+            self.contentHash[entry.hexdigest] = [ entry ]
 
-    def display(self):
+    def display(self):                          # Hashmap.display
+        """Generate a human readable report."""
         for hashval, list in self.contentHash.iteritems():
             for entry in list:
                 entry.display(False, False)
 
-    def delete(self, entry):
-        # mark this entry (and any children) as deleted
+    def delete(self, entry):                    # Hashmap.delete
+        """Marks an entry as deleted then remove it from the HashMap"""
+
         entry.delete()
 
         # remove the entry from the hashmap
@@ -169,8 +187,8 @@ class HashMap:
         # also remove all the deleted children from the hashmap
         self.prune()
 
-    def prune(self):
-        # removes deleted objects from the hashMap
+    def prune(self):                            # HashMap.prune
+        """Removes deleted objects from the HashMap"""
         for hashval, list in self.contentHash.iteritems():
             newlist=[]
             for entry in list:
@@ -178,10 +196,11 @@ class HashMap:
                     newlist.append(entry)
             self.contentHash[hashval]=newlist
 
-    def resolve(self):
+    def resolve(self):                          # HashMap.resolve
+        """Compares all entries and where hash collisions exists, pick a keeper"""
         prevCount = self.allFiles.count_deleted()
 
-        # no need to resolve uniques, so remove them from the dict 
+        # no need to resolve uniques, so remove them from the HashMap
         deleteList=[]
         for hashval, list in self.contentHash.iteritems():
             if len(list) == 1:
@@ -230,14 +249,16 @@ class DirObj():
         self.depth=len(ancestry)
         self.ignore=self.name in ignoreList
 
-    def get_lineage(self):
+    def get_lineage(self):                      # DirObj.get_lineage
+        """Crawls back up the directory tree and returns a list of parents"""
         if self.parent == None:
             return self.name.split('/')
         ancestry=self.parent.get_lineage()
         ancestry.append(self.name)
         return ancestry
 
-    def max_depth(self):
+    def max_depth(self):                        # DirObj.max_depth
+        """Determine the deepest point from this directory"""
         md=self.depth
         if len(self.subdirs.keys()):
             for name, entry in self.subdirs.iteritems():
@@ -251,7 +272,11 @@ class DirObj():
         else:
             return md
     
-    def display(self, contents=False, recurse=False):
+    def display(self, contents=False, recurse=False):  # DirObj.display
+        """Generate a human readable report.
+                'contents' controls if files are displayed
+                'recurse' controls if subdirs are displayed
+        """
         if recurse:
             for name, entry in self.subdirs.iteritems():
                 entry.display(contents, recurse)
@@ -260,7 +285,8 @@ class DirObj():
                 entry.display(contents, recurse);
         print '# Directory\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname + ' ' + self.reason
 
-    def place_dir(self, inputDirName):
+    def place_dir(self, inputDirName):                  # DirObj.place_dir
+        """Matches a pathname to a directory structure and returns a DirObj"""
         #print "looking to place " +  inputDirName + " in " + self.name
         inputDirList=inputDirName.split('/')
         nameList=self.name.split('/')
@@ -285,7 +311,8 @@ class DirObj():
         self.subdirs[nextDirName]=nextDir
         return nextDir.place_dir('/'.join(inputDirList))
 
-    def walk(self, topdown=False):
+    def walk(self, topdown=False):                      # DirObj.walk
+        """A generator which traverses the whole tree"""
         if topdown:
             yield self
         for name, d in self.subdirs.iteritems():
@@ -294,14 +321,16 @@ class DirObj():
         if not topdown:
             yield self
         
-    def delete(self):
+    def delete(self):                                   # DirObj.delete
+        """Mark this directory and all children as deleted"""
         self.deleted=True
         for name, d in self.subdirs.iteritems():
             d.delete()
         for name, f in self.files.iteritems():
             f.delete()
 
-    def generate_commands(self):
+    def generate_commands(self):                        # DirObj.generate_commands
+        """Generates delete commands to dedup all contents of this dir"""
         if self.deleted and not self.ignore:
             print '#  ' + self.reason
             print 'rm -rf "' + self.pathname + '"'
@@ -311,7 +340,8 @@ class DirObj():
             for dirName, subdir in self.subdirs.iteritems():
                 subdir.generate_commands()
 
-    def is_empty(self):
+    def is_empty(self):                                 # DirObj.is_empty
+        """Checks if the dir is empty, ignoring items marked as deleted"""
         # TODO what to do with ignored files/dirs?
         for fileName, fileEntry in self.files.iteritems():
             if not fileEntry.deleted:
@@ -322,8 +352,8 @@ class DirObj():
                 return False
         return True
 
-    def prune_empty(self):
-        # find the highest empty nodes in the tree
+    def prune_empty(self):                              # DirObj.prune_empty
+        """Crawls through all directories and deletes the children of the deleted"""
         #print '# checking ' + self.pathname + ' for empties'
         if self.is_empty() and not self.deleted and self.parent != None and not self.parent.is_empty():
             #print 'rm -rf "' + self.pathname + '" # top of empty directory tree'
@@ -334,7 +364,11 @@ class DirObj():
             for dirname, dirEntry in self.subdirs.iteritems():
                 dirEntry.prune_empty()
 
-    def close(self):
+    def finalize(self):                                 # DirObj.finalize
+        """Once no more files or directories are to be added, we can 
+        create a meta-hash of all the hashes therein.  This allows us to
+        test for directories which have the same contents.
+        """
         digests=[]
         for filename, fileEntry in self.files.iteritems():
             digests.append(fileEntry.hexdigest)
@@ -346,7 +380,8 @@ class DirObj():
             sha1.update(d)
         self.hexdigest=sha1.hexdigest()
 
-    def count_deleted(self):
+    def count_deleted(self):                            # DirObj.count_deleted
+        """returns a count of all the deleted objects within"""
         if self.deleted:
             deleted=1
         else:
@@ -413,72 +448,78 @@ class FileObj():
             #    print '# inserting db entry for ' + self.pathname
             db[self.pathname]=self.hexdigest
 
-    def delete(self):
+    def delete(self):                   # FileObj.delete
+        """Mark for deletion"""
         self.deleted=True
 
-    def generate_commands(self):
+    def generate_commands(self):        # FileObj.generate_commands
+        """Generates delete commands to dedup all contents"""
         if self.deleted and not self.ignore:
             print '#  ' + self.reason
             print 'rm "' + self.pathname + '"'
 
-    def walk(self, topdown=False):             # cannot iterate over a file
+    def walk(self, topdown=False):             # FileObj.walk
         pass
 
-    def prune_empty(self):
+    def prune_empty(self):                      # FileObj.prune_empty
+        """Crawls through all directories and deletes the children of the deleted"""
         return False            # can't prune a file
 
-    def display(self, contents=False, recurse=False):
+    def display(self, contents=False, recurse=False):  # FileObj.display
+        """Generate a human readable report."""
         print '# File\t\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname + ' ' + self.reason
 
-    def count_deleted(self):
+    def count_deleted(self):                    # FileObj.count_deleted
+        """Returns a count of all the deleted objects within"""
         if self.deleted:
-            return 1
+             return 1
         else:
             return 0
 
-BUF_SIZE = 65536  
-sys.argv.pop(0)             # do away with the command itself
-# defaults
-pruneDirectories=True
-databasePathname=None
-again=True
-while again:
-    nextArg=sys.argv[0]     # peek ahead
-    again=False
-    if nextArg == '-np' or nextArg == '--no-prune-empty-directories':
-        pruneDirectories=False
-        sys.argv.pop(0)
-        again=True
-    elif nextArg == '-db' or nextArg == '--database':
-        sys.argv.pop(0)
-        databasePathname=sys.argv.pop(0)
-        again=True
+if __name__ == '__main__':
+    sys.argv.pop(0)             # do away with the command itself
 
-if databasePathname != None:
-    print '# set to load hashes from ' + databasePathname
+    # defaults
+    pruneDirectories=True
+    databasePathname=None
+    again=True
+    while again:
+        nextArg=sys.argv[0]     # peek ahead
+        again=False
+        if nextArg == '-np' or nextArg == '--no-prune-empty-directories':
+            pruneDirectories=False
+            sys.argv.pop(0)
+            again=True
+        elif nextArg == '-db' or nextArg == '--database':
+            sys.argv.pop(0)
+            databasePathname=sys.argv.pop(0)
+            again=True
 
-allFiles = EntryList(sys.argv, databasePathname)
+    if databasePathname != None:
+        print '# set to load hashes from ' + databasePathname
 
-passCount=0
-deleted=1                   # fake value to get the loop started
-while deleted > 0:          # while things are still being removed, keep working
+    allFiles = EntryList(sys.argv, databasePathname)
 
-    if pruneDirectories:
+    passCount=0
+    deleted=1                   # fake value to get the loop started
+    while deleted > 0:          # while things are still being removed, keep working
+
+        if pruneDirectories:
+            h = HashMap(allFiles)
+            deletedDirectories = allFiles.prune_empty()
+        else:
+            deletedDirectories=0
+
         h = HashMap(allFiles)
-        deletedDirectories = allFiles.prune_empty()
-    else:
-        deletedDirectories=0
+        deletedHashMatches = h.resolve()
 
-    h = HashMap(allFiles)
-    deletedHashMatches = h.resolve()
+        deleted = deletedDirectories + deletedHashMatches
+        passCount = passCount + 1
+        if deleted > 0:
+            print '# ' + str(deleted) + ' entries deleted on pass ' + str(passCount)
 
-    deleted = deletedDirectories + deletedHashMatches
-    passCount = passCount + 1
-    if deleted > 0:
-        print '# ' + str(deleted) + ' entries deleted on pass ' + str(passCount)
+    allFiles.generate_commands()
 
-allFiles.generate_commands()
-
-#for name, e in allFiles.contents.iteritems():
-#    pass
-#    e.display(True,True)
+    #for name, e in allFiles.contents.iteritems():
+    #    pass
+    #    e.display(True,True)
