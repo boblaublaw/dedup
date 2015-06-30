@@ -20,7 +20,8 @@ vi commands.sh                                            # review command list
 sh commands.sh                                            # execute commands
 
 Where path can be any file or directory and where options can be:
- * -db/--database path_to_db_file       - cache hash results in a database for faster re-runs on large dirs
+ * -db/--database path_to_db_file       - cache hash results in a database for 
+                                          faster re-runs on large dirs
 ```
 
 ## Features
