@@ -418,9 +418,19 @@ class FileObj():
             self.pathname=self.name
             self.depth=0
 
-        self.modTime = os.stat(self.pathname).st_mtime
+        statResult = os.stat(self.pathname)
+        self.modTime = statResult.st_mtime
+        self.createTime = statResult.st_ctime
+        self.bytes = statResult.st_size
+        if self.bytes == 0:
+            self.ignore = True
+            self.hexdigest='da39a3ee5e6b4b0d3255bfef95601890afd80709'
+            return
 
-        #print '# ' + self.pathname + ' is ' + str(dbTime - self.modTime) + ' seconds older than the db'
+        if db != None:
+            #print '# ' + self.pathname + ' is ' + str(dbTime - self.modTime) + ' seconds older than the db.'
+            pass
+
         if db != None and self.pathname in db:
             # we've a cached hash value for this pathname
             if self.modTime > dbTime:
@@ -462,7 +472,7 @@ class FileObj():
 
     def generate_commands(self):        # FileObj.generate_commands
         """Generates delete commands to dedup all contents"""
-        if self.deleted:
+        if self.deleted and not self.ignore:
             print '#  ' + self.reason
             print 'rm "' + self.pathname + '"'
 
