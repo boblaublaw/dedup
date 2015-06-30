@@ -498,17 +498,12 @@ if __name__ == '__main__':
     sys.argv.pop(0)             # do away with the command itself
 
     # defaults
-    pruneDirectories=True
     databasePathname=None
     again=True
     while again:
         nextArg=sys.argv[0]     # peek ahead
         again=False
-        if nextArg == '-np' or nextArg == '--no-prune':
-            pruneDirectories=False
-            sys.argv.pop(0)
-            again=True
-        elif nextArg == '-db' or nextArg == '--database':
+        if nextArg == '-db' or nextArg == '--database':
             sys.argv.pop(0)
             databasePathname=sys.argv.pop(0)
             again=True
@@ -522,11 +517,8 @@ if __name__ == '__main__':
     deleted=1                   # fake value to get the loop started
     while deleted > 0:          # while things are still being removed, keep working
 
-        if pruneDirectories:
-            h = HashMap(allFiles)
-            deletedDirectories = allFiles.prune_empty()
-        else:
-            deletedDirectories=0
+        h = HashMap(allFiles)
+        deletedDirectories = allFiles.prune_empty()
 
         h = HashMap(allFiles)
         deletedHashMatches = h.resolve()
