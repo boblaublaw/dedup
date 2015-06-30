@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import hashlib, os, sys, stat
+import hashlib, os, sys, stat, anydbm, time
 
 # TODO need ignore lists for files and dirs to disregard
 ignoreList = [ "Icon\r", '.git', '.dropbox.cache', '.DS_Store' ]
@@ -47,15 +47,30 @@ def resolve_candidates(candidates, currentDepth=None):
         
 class EntryList:
     """a container for all source directories and files to examine"""
-    def __init__(self, argv):
+    def __init__(self, argv, databasePathname):
         self.contents = {}
+        self.modTime = None
+        self.db = None
+
+        try:
+            self.modTime = os.stat(databasePathname + '.db').st_mtime
+        except OSError:
+            print "# db " + databasePathname + ".db doesn't exist yet"
+            self.modTime = None
+
+        if databasePathname != None:
+            self.db = anydbm.open(databasePathname, 'c')
+            if self.modTime == None:
+                self.modTime = time.time()
+
+        print '# db modTime is ' + str(time.time() - self.modTime) + ' seconds ago'
         # walk argv adding files and directories
         for entry in argv:
             # TODO strip trailing slashes
             if os.path.isfile(entry):
-                self.contents[entry]=FileObj(entry)
+                self.contents[entry]=FileObj(entry, dbTime=self.modTime, db=self.db)
             elif issocket(entry):
-                print 'Skipping a socket ' + entry
+                print '# Skipping a socket ' + entry
             elif os.path.isdir(entry):
                 topDirEntry=DirObj(entry)
                 self.contents[entry]=topDirEntry
@@ -63,11 +78,14 @@ class EntryList:
                     dirEntry=topDirEntry.place_dir(dirName)
                     for fname in fileList:
                         if issocket(dirEntry.pathname + '/' + fname):
-                            print 'Skipping a socket ' + dirEntry.pathname + '/' + fname
+                            print '# Skipping a socket ' + dirEntry.pathname + '/' + fname
                         else:
-                            fileEntry=dirEntry.place_file(fname)
+                            dirEntry.files[fname]=FileObj(fname, parent=dirEntry, dbTime=self.modTime, db=self.db)
             else:
                 print "I don't know what this is" + entry
+                sys.exit()
+        if self.db != None:
+            self.db.close()
 
     def count_deleted(self):
         count=0
@@ -87,14 +105,10 @@ class EntryList:
 
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
-    def __init__(self,allFiles, databasePathname):
+    def __init__(self,allFiles):
         self.contentHash = {}
-        self.pathnameHash = {}
         self.maxDepth = 1 # we assume at least one file or dir
         self.allFiles=allFiles # we will use this later to count deletions
-
-        if databasePathname != None:
-            pass
 
         for name, e in allFiles.contents.iteritems():
             if isinstance(e, FileObj):
@@ -120,13 +134,10 @@ class HashMap:
             if self.maxDepth < td:
                 self.maxDepth=td
 
-
     def add_entry(self, entry):
         # hash digest value
         hv=entry.hexdigest
         
-        self.pathnameHash[entry.pathname] = entry
-
         if hv in self.contentHash:
             self.contentHash[hv].append(entry)
         else:
@@ -190,7 +201,7 @@ class HashMap:
                             if not loser.deleted:
                                 self.delete(loser)
                                 #print 'rm -rf "' + loser.pathname + '" # covered by ' + winner.pathname
-                                loser.reason = 'dir covered by "' + winner.pathname + '"'
+                                loser.reason = '"' + winner.pathname + '" makes dir redundant:'
                         self.prune()
 
         for hashval, list in self.contentHash.iteritems():
@@ -201,7 +212,7 @@ class HashMap:
                     if not loser.deleted:
                         self.delete(loser)
                         #print 'rm "' + loser.pathname + '" # covered by ' + winner.pathname
-                        loser.reason = 'file covered by "' + winner.pathname + '"'
+                        loser.reason = '"' + winner.pathname + '" makes file redundant:'
 
         return self.allFiles.count_deleted() - prevCount
 
@@ -274,10 +285,6 @@ class DirObj():
         self.subdirs[nextDirName]=nextDir
         return nextDir.place_dir('/'.join(inputDirList))
 
-    def place_file(self, fileName, parent = None):
-        self.files[fileName]=FileObj(fileName, self)
-        return (self.files[fileName])
-
     def walk(self, topdown=False):
         if topdown:
             yield self
@@ -296,7 +303,8 @@ class DirObj():
 
     def generate_commands(self):
         if self.deleted and not self.ignore:
-            print 'rm -rf "' + self.pathname + '" # ' + self.reason
+            print '#  ' + self.reason
+            print 'rm -rf "' + self.pathname + '"'
         else:
             for fileName, fileEntry in self.files.iteritems():
                 fileEntry.generate_commands()
@@ -320,7 +328,7 @@ class DirObj():
         if self.is_empty() and not self.deleted and self.parent != None and not self.parent.is_empty():
             #print 'rm -rf "' + self.pathname + '" # top of empty directory tree'
             self.delete()
-            self.reason = "non-unique or empty directory"
+            self.reason = "non-unique or empty directory:"
         else:
             #print '# ' + self.pathname + ' is not empty' + str(self.is_empty())
             for dirname, dirEntry in self.subdirs.iteritems():
@@ -352,11 +360,13 @@ class DirObj():
 
 class FileObj():
     """A file object which stores some metadata"""
-    def __init__(self, name, parent=None):
+    def __init__(self, name, parent=None, dbTime=None, db=None):
         self.name=name;
         self.reason=""
-        self.parent=parent
+        self.parent = parent
         self.deleted=False
+        self.ignore=self.name in ignoreList
+
         if self.parent != None:
             ancestry=self.parent.get_lineage()
             self.pathname='/'.join(ancestry) + '/' + self.name
@@ -364,6 +374,24 @@ class FileObj():
         else:
             self.pathname=self.name
             self.depth=0
+
+        self.modTime = os.stat(self.pathname).st_mtime
+
+        #print '# ' + self.pathname + ' is ' + str(dbTime - self.modTime) + ' seconds older than the db'
+        if db != None and self.pathname in db:
+            # we've a cached hash value for this pathname
+            if self.modTime > dbTime:
+                # file is newer than db
+                #print '# ' + self.pathname + ' is newer than the db'
+                pass
+            else:
+                # db is newer than file
+                #print '# ' + self.pathname + ' already in db'
+                self.hexdigest=db[self.pathname]
+                return
+        elif db != None:
+            #print '# ' + self.pathname + ' not in db'
+            pass
 
         # open and read the file
         sha1 = hashlib.sha1()
@@ -374,14 +402,24 @@ class FileObj():
                     break
                 sha1.update(data)
         self.hexdigest=sha1.hexdigest()
-        self.ignore=self.name in ignoreList
+
+        #print '# computed new hash for ' + self.pathname
+
+        if db != None:
+            # add/update the cached hash value for this entry
+            #if self.pathname in db:
+            #    print '# updating db entry for ' + self.pathname
+            #else:
+            #    print '# inserting db entry for ' + self.pathname
+            db[self.pathname]=self.hexdigest
 
     def delete(self):
         self.deleted=True
 
     def generate_commands(self):
         if self.deleted and not self.ignore:
-            print 'rm "' + self.pathname + '" # ' + self.reason
+            print '#  ' + self.reason
+            print 'rm "' + self.pathname + '"'
 
     def walk(self, topdown=False):             # cannot iterate over a file
         pass
@@ -417,21 +455,21 @@ while again:
         again=True
 
 if databasePathname != None:
-    print 'set to load hashes from ' + databasePathname
+    print '# set to load hashes from ' + databasePathname
 
-allFiles = EntryList(sys.argv)
+allFiles = EntryList(sys.argv, databasePathname)
 
 passCount=0
 deleted=1                   # fake value to get the loop started
 while deleted > 0:          # while things are still being removed, keep working
 
     if pruneDirectories:
-        h = HashMap(allFiles, databasePathname)
+        h = HashMap(allFiles)
         deletedDirectories = allFiles.prune_empty()
     else:
         deletedDirectories=0
 
-    h = HashMap(allFiles, databasePathname)
+    h = HashMap(allFiles)
     deletedHashMatches = h.resolve()
 
     deleted = deletedDirectories + deletedHashMatches
