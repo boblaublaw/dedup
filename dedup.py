@@ -119,6 +119,7 @@ class EntryList:
 
     def generate_commands(self):
         """Generates delete commands to dedup all contents"""
+        # TODO file removals should be grouped by the winner for better reviewing
         for name, e in allFiles.contents.iteritems():
             e.generate_commands()
 
@@ -345,24 +346,29 @@ class DirObj():
         """Checks if the dir is empty, ignoring items marked as deleted or ignored"""
 
         for fileName, fileEntry in self.files.iteritems():
-            if not self.deleted and not self.ignore:
+            if not fileEntry.deleted and not fileEntry.ignore:
+                #print '# ' + self.pathname + ' is not empty due to a file ' + fileEntry.name
                 return False
 
         for dirName, subdir in self.subdirs.iteritems():
             if not subdir.deleted and not subdir.is_empty() and not subdir.ignore:
+                #print '# ' + self.pathname + ' is not empty due to a dir ' + subdir.name
                 return False
 
+        #print '# ' + self.pathname + ' is empty'
         return True
 
     def prune_empty(self):                              # DirObj.prune_empty
-        """Crawls through all directories and deletes the children of the deleted"""
+        """Crawls through all directories and marks the shallowest empty entiries for deletion"""
         #print '# checking ' + self.pathname + ' for empties'
-        if self.is_empty() and not self.deleted and self.parent != None and not self.parent.is_empty():
-            #print 'rm -rf "' + self.pathname + '" # top of empty directory tree'
+        if self.is_empty() and not self.deleted and self.parent == None:
+            self.delete()
+            self.reason = "non-unique or empty top level directory:"
+        elif self.is_empty() and not self.deleted and self.parent != None and not self.parent.is_empty():
             self.delete()
             self.reason = "non-unique or empty directory:"
         else:
-            #print '# ' + self.pathname + ' is not empty' + str(self.is_empty())
+            #print '# ' + self.pathname + ' is not empty: ' + str(self.is_empty())
             for dirname, dirEntry in self.subdirs.iteritems():
                 dirEntry.prune_empty()
 
