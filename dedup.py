@@ -3,14 +3,10 @@
 import hashlib, os, sys, stat, anydbm, time
 
 # Constants:
-# TODO need ignore lists for files and dirs to disregard
-ignoreList = [ "Icon\r", '.git', '.dropbox.cache', '.DS_Store' ]
+# This list represents files that may linger in directories 
+# preventing this algorithm from recognizing them as empty.
+deleteList = [ "Icon\r", '.dropbox.cache', '.DS_Store' ]
 BUF_SIZE = 65536  
-
-def issocket(path):
-    """For some reason python provides isfile and isdirectory but not issocket"""
-    mode = os.stat(path).st_mode
-    return stat.S_ISSOCK(mode)
 
 def resolve_candidates(candidates, currentDepth=None):
     """Helper function which examines a list of candidate objects with identical
@@ -59,6 +55,11 @@ def resolve_candidates(candidates, currentDepth=None):
             losers.append(candidate)
     return winner, losers
         
+def issocket(path):
+    """For some reason python provides isfile and isdirectory but not issocket"""
+    mode = os.stat(path).st_mode
+    return stat.S_ISSOCK(mode)
+
 class EntryList:
     """A container for all source directories and files to examine"""
     def __init__(self, argv, databasePathname):
@@ -247,7 +248,7 @@ class DirObj():
         ancestry=self.get_lineage()
         self.pathname='/'.join(ancestry) 
         self.depth=len(ancestry)
-        self.ignore=self.name in ignoreList
+        self.ignore=self.name in deleteList
 
     def get_lineage(self):                      # DirObj.get_lineage
         """Crawls back up the directory tree and returns a list of parents"""
@@ -331,7 +332,7 @@ class DirObj():
 
     def generate_commands(self):                        # DirObj.generate_commands
         """Generates delete commands to dedup all contents of this dir"""
-        if self.deleted and not self.ignore:
+        if self.deleted:
             print '#  ' + self.reason
             print 'rm -rf "' + self.pathname + '"'
         else:
@@ -341,15 +342,16 @@ class DirObj():
                 subdir.generate_commands()
 
     def is_empty(self):                                 # DirObj.is_empty
-        """Checks if the dir is empty, ignoring items marked as deleted"""
-        # TODO what to do with ignored files/dirs?
+        """Checks if the dir is empty, ignoring items marked as deleted or ignored"""
+
         for fileName, fileEntry in self.files.iteritems():
-            if not fileEntry.deleted:
+            if not self.deleted and not self.ignore:
                 return False
 
         for dirName, subdir in self.subdirs.iteritems():
-            if not subdir.deleted and not subdir.is_empty():
+            if not subdir.deleted and not subdir.is_empty() and not subdir.ignore:
                 return False
+
         return True
 
     def prune_empty(self):                              # DirObj.prune_empty
@@ -400,7 +402,7 @@ class FileObj():
         self.reason=""
         self.parent = parent
         self.deleted=False
-        self.ignore=self.name in ignoreList
+        self.ignore=self.name in deleteList
 
         if self.parent != None:
             ancestry=self.parent.get_lineage()
@@ -454,7 +456,7 @@ class FileObj():
 
     def generate_commands(self):        # FileObj.generate_commands
         """Generates delete commands to dedup all contents"""
-        if self.deleted and not self.ignore:
+        if self.deleted:
             print '#  ' + self.reason
             print 'rm "' + self.pathname + '"'
 
