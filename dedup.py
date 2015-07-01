@@ -565,6 +565,8 @@ if __name__ == '__main__':
         passCount = passCount + 1
         if deleted > 0:
             print '# ' + str(deleted) + ' entries deleted on pass ' + str(passCount)
+        else:
+            print
 
     selectDirMap={}
     selectFileMap={}
@@ -595,7 +597,7 @@ if __name__ == '__main__':
             print
     if len(emptyMap.keys()):
         print '####################################################################'
-        print '# directories that are or will be empty after resolving dupes:'
+        print '# directories that are or will be empty after resolving duplicates:'
         empties = emptyMap.keys()
         empties.sort()
         for k in empties:
