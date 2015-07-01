@@ -117,11 +117,16 @@ class EntryList:
             e.prune_empty()
         return allFiles.count_deleted() - prevCount
 
-    def generate_commands(self):
+    def walk(self):                     # EntryList.walk
+        for name, topLevelItem in allFiles.contents.iteritems():
+            for item in topLevelItem.walk():
+                yield item
+
+    def generate_commands(self, selectDirMap, selectFileMap, emptyMap): # EntryList.generate_commands
         """Generates delete commands to dedup all contents"""
         # TODO file removals should be grouped by the winner for better reviewing
-        for name, e in allFiles.contents.iteritems():
-            e.generate_commands()
+        for name, e in self.contents.iteritems():
+            e.generate_commands(selectDirMap, selectFileMap, emptyMap)
 
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
@@ -134,7 +139,7 @@ class HashMap:
             if isinstance(e, FileObj):
                 self.add_entry(e)
                 continue
-            for dirEntry in e.walk():
+            for dirEntry in e.dirwalk():
                 #print '\n# adding dir ' + dirEntry.pathname
                 if not dirEntry.deleted:
                     for name, fileEntry in dirEntry.files.iteritems():
@@ -221,8 +226,7 @@ class HashMap:
                         for loser in losers:
                             if not loser.deleted:
                                 self.delete(loser)
-                                #print 'rm -rf "' + loser.pathname + '" # covered by ' + winner.pathname
-                                loser.reason = '"' + winner.pathname + '" makes dir redundant:'
+                                loser.winner = winner
                         self.prune()
 
         for hashval, list in self.contentHash.iteritems():
@@ -232,8 +236,7 @@ class HashMap:
                 for loser in losers:
                     if not loser.deleted:
                         self.delete(loser)
-                        #print 'rm "' + loser.pathname + '" # covered by ' + winner.pathname
-                        loser.reason = '"' + winner.pathname + '" makes file redundant:'
+                        loser.winner = winner
 
         return self.allFiles.count_deleted() - prevCount
 
@@ -243,7 +246,7 @@ class DirObj():
         self.name=name
         self.files={}
         self.deleted=False
-        self.reason=""
+        self.winner = None
         self.subdirs={}
         self.parent=parent
         ancestry=self.get_lineage()
@@ -285,7 +288,7 @@ class DirObj():
         if contents:
             for name, entry in self.files.iteritems():
                 entry.display(contents, recurse);
-        print '# Directory\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname + ' ' + self.reason
+        print '# Directory\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname
 
     def place_dir(self, inputDirName):                  # DirObj.place_dir
         """Matches a pathname to a directory structure and returns a DirObj"""
@@ -313,16 +316,27 @@ class DirObj():
         self.subdirs[nextDirName]=nextDir
         return nextDir.place_dir('/'.join(inputDirList))
 
-    def walk(self, topdown=False):                      # DirObj.walk
-        """A generator which traverses the whole tree"""
+    def dirwalk(self, topdown=False):                      # DirObj.dirwalk
+        """A generator which traverses just subdirectories"""
         if topdown:
             yield self
+
         for name, d in self.subdirs.iteritems():
-            for dirEntry in d.walk():
+            for dirEntry in d.dirwalk():
                 yield dirEntry
+
         if not topdown:
             yield self
-        
+
+    def walk(self):                                         # DirObj.walk
+        """A generator which traverses files and subdirs"""
+        for name, subdir in self.subdirs.iteritems():
+            for e in subdir.walk():
+                yield e
+        for name, fileEntry in self.files.iteritems():
+            yield fileEntry
+        yield self
+            
     def delete(self):                                   # DirObj.delete
         """Mark this directory and all children as deleted"""
         self.deleted=True
@@ -331,16 +345,21 @@ class DirObj():
         for name, f in self.files.iteritems():
             f.delete()
 
-    def generate_commands(self):                        # DirObj.generate_commands
+    def generate_commands(self, selectDirMap, selectFileMap, emptyMap):             # DirObj.generate_commands
         """Generates delete commands to dedup all contents of this dir"""
         if self.deleted:
-            print '#  ' + self.reason
-            print 'rm -rf "' + self.pathname + '"'
+            if self.winner != None:
+                if self.winner.pathname in selectDirMap:
+                    selectDirMap[self.winner.pathname].append(self.pathname)
+                else:
+                    selectDirMap[self.winner.pathname] = [ self.pathname ]
+            else:
+                emptyMap[self.pathname]=True
         else:
             for fileName, fileEntry in self.files.iteritems():
-                fileEntry.generate_commands()
+                fileEntry.generate_commands(selectFileMap, emptyMap)
             for dirName, subdir in self.subdirs.iteritems():
-                subdir.generate_commands()
+                subdir.generate_commands(selectDirMap, selectFileMap, emptyMap)
 
     def is_empty(self):                                 # DirObj.is_empty
         """Checks if the dir is empty, ignoring items marked as deleted or ignored"""
@@ -363,10 +382,8 @@ class DirObj():
         #print '# checking ' + self.pathname + ' for empties'
         if self.is_empty() and not self.deleted and self.parent == None:
             self.delete()
-            self.reason = "non-unique or empty top level directory:"
         elif self.is_empty() and not self.deleted and self.parent != None and not self.parent.is_empty():
             self.delete()
-            self.reason = "non-unique or empty directory:"
         else:
             #print '# ' + self.pathname + ' is not empty: ' + str(self.is_empty())
             for dirname, dirEntry in self.subdirs.iteritems():
@@ -405,7 +422,7 @@ class FileObj():
     """A file object which stores some metadata"""
     def __init__(self, name, parent=None, dbTime=None, db=None):
         self.name=name;
-        self.reason=""
+        self.winner=None
         self.parent = parent
         self.deleted=False
         self.ignore=self.name in deleteList
@@ -466,18 +483,24 @@ class FileObj():
             #    print '# inserting db entry for ' + self.pathname
             db[self.pathname]=self.hexdigest
 
+    def walk(self):                     # FileObj.walk
+        """Used to fit into other generators"""
+        yield self
+
     def delete(self):                   # FileObj.delete
         """Mark for deletion"""
         self.deleted=True
 
-    def generate_commands(self):        # FileObj.generate_commands
+    def generate_commands(self, selectFileMap, emptyMap):     # FileObj.generate_commands
         """Generates delete commands to dedup all contents"""
         if self.deleted and not self.ignore:
-            print '#  ' + self.reason
-            print 'rm "' + self.pathname + '"'
-
-    def walk(self, topdown=False):             # FileObj.walk
-        pass
+            if self.winner != None:
+                if self.winner.pathname in selectFileMap:
+                    selectFileMap[self.winner.pathname].append(self.pathname)
+                else:
+                    selectFileMap[self.winner.pathname] = [self.pathname]
+            else:
+                emptyMap[self.pathname] = True
 
     def prune_empty(self):                      # FileObj.prune_empty
         """Crawls through all directories and deletes the children of the deleted"""
@@ -485,7 +508,7 @@ class FileObj():
 
     def display(self, contents=False, recurse=False):  # FileObj.display
         """Generate a human readable report."""
-        print '# File\t\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname + ' ' + self.reason
+        print '# File\t\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname + ' '
 
     def count_deleted(self):                    # FileObj.count_deleted
         """Returns a count of all the deleted objects within"""
@@ -528,8 +551,31 @@ if __name__ == '__main__':
         if deleted > 0:
             print '# ' + str(deleted) + ' entries deleted on pass ' + str(passCount)
 
-    allFiles.generate_commands()
+    selectDirMap={}
+    selectFileMap={}
+    emptyMap={}
+    allFiles.generate_commands(selectDirMap, selectFileMap, emptyMap)
+    if len(selectDirMap.keys()):
+        print '########################################################'
+        print '# redundant directories:'
+        for winner, losers in selectDirMap.iteritems():
+            print '# ' + winner
+            for loser in losers:
+                print 'rm -rf "' + loser + '"'
+            print
+    if len(selectFileMap.keys()):
+        print '########################################################'
+        print '# redundant files:'
+        for winner, losers in selectFileMap.iteritems():
+            print '# ' + winner
+            for loser in losers:
+                print 'rm "' + loser + '"'
+            print
+    if len(emptyMap.keys()):
+        print '########################################################'
+        print '# directories that are or will be empty:'
+        for k in emptyMap.keys():
+            print 'rm -rf "' + k + '"'
 
-    #for name, e in allFiles.contents.iteritems():
-    #    pass
-    #    e.display(True,True)
+    #for e in allFiles.walk():
+    #    e.display(False,False)
