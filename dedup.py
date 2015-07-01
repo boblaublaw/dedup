@@ -573,7 +573,11 @@ if __name__ == '__main__':
     if len(selectDirMap.keys()):
         print '####################################################################'
         print '# redundant directories:'
-        for winner, losers in selectDirMap.iteritems():
+        #for winner, losers in selectDirMap.iteritems():
+        winners=selectDirMap.keys()
+        winners.sort()
+        for winner in winners:
+            losers=selectDirMap[winner]
             print '#      "' + winner + '"'
             for loser in losers:
                 print 'rm -rf "' + loser + '"'
@@ -581,7 +585,10 @@ if __name__ == '__main__':
     if len(selectFileMap.keys()):
         print '####################################################################'
         print '# redundant files:'
-        for winner, losers in selectFileMap.iteritems():
+        #for winner, losers in selectFileMap.iteritems():
+        winners=selectFileMap.keys()
+        winners.sort()
+        for winner in winners:
             print '#  "' + winner + '"'
             for loser in losers:
                 print 'rm "' + loser + '"'
@@ -589,7 +596,9 @@ if __name__ == '__main__':
     if len(emptyMap.keys()):
         print '####################################################################'
         print '# directories that are or will be empty after resolving dupes:'
-        for k in emptyMap.keys():
+        empties = emptyMap.keys()
+        empties.sort()
+        for k in empties:
             print 'rm -rf "' + k + '"'
 
     #for e in allFiles.walk():
