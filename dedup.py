@@ -48,11 +48,15 @@ def resolve_candidates(candidates, currentDepth=None):
     winner=depthMap[md]
 
     if isinstance(winner, DirObj) and winner.is_empty():
+        # we trim empty directories using DirObj.prune_empty()
+        # because it produces less confusing output
         return None, None
 
+    # once we have a winner, mark all the other candidates as losers
     for candidate in candidates:
         if candidate != winner:
             losers.append(candidate)
+
     return winner, losers
         
 def issocket(path):
