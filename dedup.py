@@ -127,11 +127,49 @@ class EntryList:
             for item in topLevelItem.walk():
                 yield item
 
-    def generate_commands(self, selectDirMap, selectFileMap, emptyMap): # EntryList.generate_commands
+    def generate_commands(self):        # EntryList.generate_commands
         """Generates delete commands to dedup all contents"""
+
+        selectDirMap={}
+        selectFileMap={}
+        emptyMap={}
+
         # TODO file removals should be grouped by the winner for better reviewing
         for name, e in self.contents.iteritems():
             e.generate_commands(selectDirMap, selectFileMap, emptyMap)
+
+        if len(selectDirMap.keys()):
+            print '####################################################################'
+            print '# redundant directories:'
+            #for winner, losers in selectDirMap.iteritems():
+            winners=selectDirMap.keys()
+            winners.sort()
+            for winner in winners:
+                losers=selectDirMap[winner]
+                print '#      "' + winner + '"'
+                for loser in losers:
+                    print 'rm -rf "' + loser + '"'
+                print
+
+        if len(selectFileMap.keys()):
+            print '####################################################################'
+            print '# redundant files:'
+            #for winner, losers in selectFileMap.iteritems():
+            winners=selectFileMap.keys()
+            winners.sort()
+            for winner in winners:
+                print '#  "' + winner + '"'
+                for loser in losers:
+                    print 'rm "' + loser + '"'
+                print
+        
+        if len(emptyMap.keys()):
+            print '####################################################################'
+            print '# directories that are or will be empty after resolving duplicates:'
+            empties = emptyMap.keys()
+            empties.sort()
+            for k in empties:
+                print 'rm -rf "' + k + '"'
 
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
@@ -568,40 +606,7 @@ if __name__ == '__main__':
         else:
             print
 
-    selectDirMap={}
-    selectFileMap={}
-    emptyMap={}
-    allFiles.generate_commands(selectDirMap, selectFileMap, emptyMap)
-    if len(selectDirMap.keys()):
-        print '####################################################################'
-        print '# redundant directories:'
-        #for winner, losers in selectDirMap.iteritems():
-        winners=selectDirMap.keys()
-        winners.sort()
-        for winner in winners:
-            losers=selectDirMap[winner]
-            print '#      "' + winner + '"'
-            for loser in losers:
-                print 'rm -rf "' + loser + '"'
-            print
-    if len(selectFileMap.keys()):
-        print '####################################################################'
-        print '# redundant files:'
-        #for winner, losers in selectFileMap.iteritems():
-        winners=selectFileMap.keys()
-        winners.sort()
-        for winner in winners:
-            print '#  "' + winner + '"'
-            for loser in losers:
-                print 'rm "' + loser + '"'
-            print
-    if len(emptyMap.keys()):
-        print '####################################################################'
-        print '# directories that are or will be empty after resolving duplicates:'
-        empties = emptyMap.keys()
-        empties.sort()
-        for k in empties:
-            print 'rm -rf "' + k + '"'
+    allFiles.generate_commands()
 
     #for e in allFiles.walk():
     #    e.display(False,False)
