@@ -7,6 +7,7 @@ import hashlib, os, sys, stat, anydbm, time
 # preventing this algorithm from recognizing them as empty.
 deleteList = [ "Icon\r", '.dropbox.cache', '.DS_Store' ]
 BUF_SIZE = 65536  
+verbose=False
 
 def resolve_candidates(candidates, currentDepth=None):
     """Helper function which examines a list of candidate objects with identical
@@ -225,6 +226,8 @@ class HashMap:
                     if losers != None:
                         for loser in losers:
                             if not loser.deleted:
+                                if verbose:
+                                    print '# dir "' + loser.pathname + '" covered by "' + winner.pathname + '"'
                                 self.delete(loser)
                                 loser.winner = winner
                         self.prune()
@@ -235,6 +238,8 @@ class HashMap:
                 winner, losers = resolve_candidates(list)
                 for loser in losers:
                     if not loser.deleted:
+                        if verbose:
+                            print '# file "' + loser.pathname + '" covered by "' + winner.pathname + '"'
                         self.delete(loser)
                         loser.winner = winner
 
@@ -374,7 +379,7 @@ class DirObj():
                 #print '# ' + self.pathname + ' is not empty due to a dir ' + subdir.name
                 return False
 
-        #print '# ' + self.pathname + ' is empty'
+        #print '# ' + self.pathname + ' is empty!'
         return True
 
     def prune_empty(self):                              # DirObj.prune_empty
@@ -382,8 +387,10 @@ class DirObj():
         #print '# checking ' + self.pathname + ' for empties'
         if self.is_empty() and not self.deleted and self.parent == None:
             self.delete()
+            #print '# TLD ' + self.pathname + ' is now empty: ' + str(self.is_empty())
         elif self.is_empty() and not self.deleted and self.parent != None and not self.parent.is_empty():
             self.delete()
+            #print '# ' + self.pathname + ' is now empty: ' + str(self.is_empty())
         else:
             #print '# ' + self.pathname + ' is not empty: ' + str(self.is_empty())
             for dirname, dirEntry in self.subdirs.iteritems():
@@ -526,6 +533,10 @@ if __name__ == '__main__':
     while again:
         nextArg=sys.argv[0]     # peek ahead
         again=False
+        if nextArg == '-v' or nextArg == '--verbose':
+            sys.argv.pop(0)
+            again=True
+            verbose=True
         if nextArg == '-db' or nextArg == '--database':
             sys.argv.pop(0)
             databasePathname=sys.argv.pop(0)
@@ -556,24 +567,24 @@ if __name__ == '__main__':
     emptyMap={}
     allFiles.generate_commands(selectDirMap, selectFileMap, emptyMap)
     if len(selectDirMap.keys()):
-        print '########################################################'
+        print '####################################################################'
         print '# redundant directories:'
         for winner, losers in selectDirMap.iteritems():
-            print '# ' + winner
+            print '#      "' + winner + '"'
             for loser in losers:
                 print 'rm -rf "' + loser + '"'
             print
     if len(selectFileMap.keys()):
-        print '########################################################'
+        print '####################################################################'
         print '# redundant files:'
         for winner, losers in selectFileMap.iteritems():
-            print '# ' + winner
+            print '#  "' + winner + '"'
             for loser in losers:
                 print 'rm "' + loser + '"'
             print
     if len(emptyMap.keys()):
-        print '########################################################'
-        print '# directories that are or will be empty:'
+        print '####################################################################'
+        print '# directories that are or will be empty after resolving dupes:'
         for k in emptyMap.keys():
             print 'rm -rf "' + k + '"'
 
