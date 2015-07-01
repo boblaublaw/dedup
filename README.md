@@ -8,6 +8,7 @@ At this time of this writing, there are several tools similar to this one on git
 
 This project is similar to several of these projects in a few ways:
  * File comparisons are made by hashing their contents.
+ * Caching hash results is supported.  Modification time is examined to update cache results when needed.
  * This script doesn't actually delete anything.  Instead a shell script is produced, intended for review before execution.
 
 However, unlike these other projects, this project has a few additional features I found to be absent.
