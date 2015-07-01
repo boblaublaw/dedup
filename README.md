@@ -24,7 +24,10 @@ sh commands.sh                                            # execute commands
 Where path can be any file or directory and where options can be:
  * -v/--verbose                         - show some rationale
  * -db/--database path_to_db_file       - cache hash results in a database for 
-                                          faster re-runs on large dirs
+                                          faster re-runs on large dirs. (When
+                                          specifying a pathname, do not supply
+                                          the .db extension.  anydbm adds this
+                                          on its own.)
 ```
 
 ## Features
