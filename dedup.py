@@ -108,6 +108,13 @@ class EntryList:
         if self.db != None:
             self.db.close()
 
+    def count_deleted_bytes(self):      # EntryList.count_deleted_bytes
+        """Returns a count of all the sizes of the deleted objects within"""
+        bytes=0
+        for name, e in self.contents.iteritems():
+            bytes = bytes + e.count_deleted_bytes()
+        return bytes
+
     def count_deleted(self):            # EntryList.count_deleted
         """Returns a count of all the deleted objects within"""
         count=0
@@ -454,6 +461,16 @@ class DirObj():
             sha1.update(d)
         self.hexdigest=sha1.hexdigest()
 
+    def count_deleted_bytes(self):                      # DirObj.count_deleted_bytes
+        """returns a count of all the sizes of the deleted objects within"""
+        bytes=0
+        for name, d in self.subdirs.iteritems():
+            bytes = bytes + d.count_deleted_bytes()
+        for name, f in self.files.iteritems():
+            if f.deleted:
+                bytes = bytes + f.count_deleted_bytes()
+        return bytes
+
     def count_deleted(self):                            # DirObj.count_deleted
         """returns a count of all the deleted objects within"""
         if self.deleted:
@@ -559,6 +576,13 @@ class FileObj():
         """Generate a human readable report."""
         print '# File\t\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname + ' '
 
+    def count_deleted_bytes(self):              # FileObj.count_deleted_bytes
+        """Returns a count of all the sizes of the deleted objects within"""
+        if self.deleted:
+             return self.bytes 
+        else:
+            return 0
+
     def count_deleted(self):                    # FileObj.count_deleted
         """Returns a count of all the deleted objects within"""
         if self.deleted:
@@ -603,10 +627,10 @@ if __name__ == '__main__':
         passCount = passCount + 1
         if deleted > 0:
             print '# ' + str(deleted) + ' entries deleted on pass ' + str(passCount)
-        else:
-            print
+    print '# total bytes marked for deletion (not including directories): ' + str(allFiles.count_deleted_bytes()) + '\n'
 
     allFiles.generate_commands()
+
 
     #for e in allFiles.walk():
     #    e.display(False,False)
