@@ -523,7 +523,8 @@ class FileObj():
                 pass
             else:
                 # db is newer than file
-                #print '# ' + self.pathname + ' already in db'
+                if verbose:
+					print '# ' + self.pathname + ' already in db'
                 self.hexdigest=db[self.pathname]
                 return
         elif db != None:
@@ -540,7 +541,8 @@ class FileObj():
                 sha1.update(data)
         self.hexdigest=sha1.hexdigest()
 
-        #print '# computed new hash for ' + self.pathname
+        if verbose:
+			print '# computed new hash for ' + self.pathname
 
         if db != None:
             # add/update the cached hash value for this entry
@@ -632,11 +634,10 @@ if __name__ == '__main__':
 
     allFiles.generate_commands()
 
-
     #for e in allFiles.walk():
     #    e.display(False,False)
     endTime=time.time()
-    print '# total bytes marked for deletion (not including directories): ' + str(allFiles.count_deleted_bytes()) + '\n'
+    print '# total bytes marked for deletion (not including directory files): ' + str(allFiles.count_deleted_bytes()) + '\n'
     print '# total running time: ' + str(endTime - startTime) + ' seconds.'
 
 # vim: set sw=4 ts=4:
