@@ -614,7 +614,7 @@ if __name__ == '__main__':
         print '# set to load hashes from ' + databasePathname
 
     allFiles = EntryList(sys.argv, databasePathname)
-    print 'files loaded'
+    print '# files loaded'
     passCount=0
     deleted=1                   # fake value to get the loop started
     while deleted > 0:          # while things are still being removed, keep working
