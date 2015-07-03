@@ -73,9 +73,9 @@ class EntryList:
 
         if databasePathname != None:
             try:
-                self.modTime = os.stat(databasePathname + '.db').st_mtime
+                self.modTime = os.stat(databasePathname).st_mtime
             except OSError:
-                print "# db " + databasePathname + ".db doesn't exist yet"
+                print "# db " + databasePathname + " doesn't exist yet"
                 self.modTime = None
 
             self.db = anydbm.open(databasePathname, 'c')
