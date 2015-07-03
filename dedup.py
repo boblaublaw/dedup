@@ -165,6 +165,7 @@ class EntryList:
             winners=selectFileMap.keys()
             winners.sort()
             for winner in winners:
+                losers=selectFileMap[winner]
                 print '#  "' + winner + '"'
                 for loser in losers:
                     print 'rm "' + loser + '"'
@@ -591,6 +592,7 @@ class FileObj():
             return 0
 
 if __name__ == '__main__':
+    startTime=time.time()
     sys.argv.pop(0)             # do away with the command itself
 
     # defaults
@@ -612,7 +614,7 @@ if __name__ == '__main__':
         print '# set to load hashes from ' + databasePathname
 
     allFiles = EntryList(sys.argv, databasePathname)
-
+    print 'files loaded'
     passCount=0
     deleted=1                   # fake value to get the loop started
     while deleted > 0:          # while things are still being removed, keep working
@@ -627,10 +629,12 @@ if __name__ == '__main__':
         passCount = passCount + 1
         if deleted > 0:
             print '# ' + str(deleted) + ' entries deleted on pass ' + str(passCount)
-    print '# total bytes marked for deletion (not including directories): ' + str(allFiles.count_deleted_bytes()) + '\n'
 
     allFiles.generate_commands()
 
 
     #for e in allFiles.walk():
     #    e.display(False,False)
+    endTime=time.time()
+    print '# total bytes marked for deletion (not including directories): ' + str(allFiles.count_deleted_bytes()) + '\n'
+    print '# total running time: ' + str(endTime - startTime) + ' seconds.'
