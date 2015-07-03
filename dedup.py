@@ -638,3 +638,5 @@ if __name__ == '__main__':
     endTime=time.time()
     print '# total bytes marked for deletion (not including directories): ' + str(allFiles.count_deleted_bytes()) + '\n'
     print '# total running time: ' + str(endTime - startTime) + ' seconds.'
+
+# vim: set sw=4 ts=4:
