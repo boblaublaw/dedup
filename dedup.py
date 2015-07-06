@@ -195,7 +195,7 @@ class EntryList:
                 losers=selectDirMap[winner]
                 print "#      '" + winner + "'"
                 for loser in losers:
-                    genereate_delete(loser)
+                    generate_delete(loser)
                 print
 
         winnerList=selectFileMap.keys()
