@@ -119,7 +119,7 @@ class EntryList:
             if self.modTime == None:
                 self.modTime = time.time()
 
-            print '# db modTime is ' + str(time.time() - self.modTime) + ' seconds ago'
+            print '# db last modification time is ' + str(time.time() - self.modTime) + ' seconds ago'
 
         # walk arguments adding files and directories
         for entry in arguments:
