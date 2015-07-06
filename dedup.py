@@ -115,7 +115,7 @@ class EntryList:
                 print "# db " + databasePathname + " doesn't exist yet"
                 self.modTime = None
 
-            self.db = gdm.open(databasePathname, 'c')
+            self.db = gdbm.open(databasePathname, 'c')
             if self.modTime == None:
                 self.modTime = time.time()
 
@@ -662,7 +662,7 @@ def clean_database(databasePathname):
     except:
         print "# " + databasePathname + " could not be loaded"
         return
-    # even though gdm supports memory efficient iteration over
+    # even though gdbm supports memory efficient iteration over
     # all keys, I want to order my traversal across similar
     # paths to leverage caching of directory files:
     allKeys=db.keys()
@@ -684,7 +684,7 @@ def clean_database(databasePathname):
     db.reorganize()
     db.sync()
     db.close()
-    print '# done cleaning ' + databasePathname + ', removed ' + str(count) + 'dead nodes!'
+    print '# done cleaning ' + databasePathname + ', removed ' + str(count) + ' dead nodes!'
 
 if __name__ == '__main__':
     startTime=time.time()
