@@ -8,7 +8,7 @@ At this time of this writing, there are several tools similar to this one on git
 
 This project is similar to several of these projects in a few ways:
  * It is intended to solve two distinct problems:
-   * Improve disk utilization by reducing redundant copies.
+   * Improve disk utilization by reducing redundant copies.  (If this is your only goal, consider a dedup filesystem like ZFS: https://blogs.oracle.com/bonwick/entry/zfs_dedup)
    * Reduce clutter and improve file system organization.
  * File comparisons are made by hashing their contents.
  * Caching hash results is supported.  Modification time is examined to update cache results when needed.
