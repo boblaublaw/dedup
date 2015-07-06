@@ -1,15 +1,12 @@
 #!/usr/bin/env python
 
-import hashlib, os, sys, stat, anydbm, time
+import hashlib, os, sys, stat, anydbm, time, gdbm
 
 # TODO exclude and include filters
 
 # TODO level adjustments?
 
 # TODO feedback system?
-
-# TODO delimit with " if string contains ) or '
-# 		delimit with ' otherwise
 
 # Constants:
 # This list represents files that may linger in directories 
@@ -72,6 +69,14 @@ def issocket(path):
     """For some reason python provides isfile and isdirectory but not issocket"""
     mode = os.stat(path).st_mode
     return stat.S_ISSOCK(mode)
+
+def generate_delete(filename):
+    # characters that we will wrap with double quotes:
+    delimTestChars = set("'()")
+    if any((c in delimTestChars) for c in filename):
+        print 'rm -rf "' + filename + '"'
+    else:
+        print "rm -rf '" + filename + "'"
 
 class EntryList:
     """A container for all source directories and files to examine"""
@@ -154,39 +159,37 @@ class EntryList:
         for name, e in self.contents.iteritems():
             e.generate_commands(selectDirMap, selectFileMap, emptyMap)
 
-        if len(selectDirMap.keys()):
+        winnerList=selectDirMap.keys()
+        if len(winnerList):
             print '####################################################################'
             print '# redundant directories:'
-            #for winner, losers in selectDirMap.iteritems():
-            winners=selectDirMap.keys()
-            winners.sort()
-            for winner in winners:
+            winnerList.sort()
+            for winner in winnerList:
                 losers=selectDirMap[winner]
                 print "#      '" + winner + "'"
                 for loser in losers:
-                    print "rm -rf '" + loser + "'"
+                    genereate_delete(loser)
                 print
 
-        if len(selectFileMap.keys()):
+        winnerList=selectFileMap.keys()
+        if len(winnerList):
             print '####################################################################'
             print '# redundant files:'
-            #for winner, losers in selectFileMap.iteritems():
-            winners=selectFileMap.keys()
-            winners.sort()
-            for winner in winners:
+            winnerList.sort()
+            for winner in winnerList:
                 losers=selectFileMap[winner]
                 print "#      '" + winner + "'"
                 for loser in losers:
-                    print "rm -rf '" + loser + "'"
+                    generate_delete(loser)
                 print
         
-        if len(emptyMap.keys()):
+        emptyDirs=emptyMap.keys()
+        if len(emptyDirs):
             print '####################################################################'
             print '# directories that are or will be empty after resolving duplicates:'
-            empties = emptyMap.keys()
-            empties.sort()
-            for k in empties:
-                print "rm -rf '" + k + "'"
+            emptyDirs.sort()
+            for emptyDir in emptyDirs:
+                generate_delete(emptyDir)
 
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
@@ -605,15 +608,30 @@ class FileObj():
         else:
             return 0
 
+def clean_database(databasePathname):
+    """function to remove dead nodes from the hash db"""
+    print '# cleaning database ' + databasePathname
+    try:
+        db = anydbm.open(databasePathname, 'w')
+    except:
+        print "# " + databasePathname + " could not be loaded"
+        return
+    
+
 if __name__ == '__main__':
     startTime=time.time()
     sys.argv.pop(0)             # do away with the command itself
 
     # defaults
     databasePathname=None
+    cleanDatabase=False
     again=True
     while again:
-        nextArg=sys.argv[0]     # peek ahead
+        try:
+            nextArg=sys.argv[0]     # peek ahead
+        except IndexError:
+            nextArg=None
+
         again=False
         if nextArg == '-v' or nextArg == '--verbose':
             sys.argv.pop(0)
@@ -621,11 +639,25 @@ if __name__ == '__main__':
             verbose=True
         if nextArg == '-db' or nextArg == '--database':
             sys.argv.pop(0)
-            databasePathname=sys.argv.pop(0)
+            try:
+                databasePathname=sys.argv.pop(0)
+            except IndexError:
+                print '# argument needed for -db switch'
+                sys.exit(-1)
+            again=True
+        if nextArg == '-cdb' or nextArg == '--clean-database':
+            sys.argv.pop(0)
+            cleanDatabase=True
             again=True
 
     if databasePathname != None:
-        print '# set to load hashes from ' + databasePathname
+        print '# set to use database: ' + databasePathname
+        if cleanDatabase:
+            clean_database(databasePathname)
+            sys.exit(0)
+    elif cleanDatabase:
+        print '# database file must be specified for --clean-database command (use -db)'
+        sys.exit(-1)
 
     allFiles = EntryList(sys.argv, databasePathname)
     print '# files loaded'
@@ -652,4 +684,4 @@ if __name__ == '__main__':
     print '# total bytes marked for deletion (not including directory files): ' + str(allFiles.count_deleted_bytes()) + '\n'
     print '# total running time: ' + str(endTime - startTime) + ' seconds.'
 
-# vim: set noet sw=4 ts=4:
+# vim: set expandtab sw=4 ts=4:
