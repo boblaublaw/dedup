@@ -4,10 +4,6 @@ import hashlib, os, sys, stat, time, gdbm
 
 # TODO exclude and include filters
 
-# TODO level adjustments?
-
-# TODO feedback system?
-
 # Constants:
 # This list represents files that may linger in directories 
 # preventing this algorithm from recognizing them as empty.
@@ -78,9 +74,26 @@ def generate_delete(filename):
     else:
         print "rm -rf '" + filename + "'"
 
+def check_int(s):
+    if s[0] in ('-', '+'):
+        return s[1:].isdigit()
+    return s.isdigit()
+
+def check_level(pathname):
+
+    parts=pathname.split(':')
+    if len(parts) > 1:
+        firstPart=parts.pop(0)
+        remainder=':'.join(parts)
+        if check_int(firstPart):
+            return int(firstPart), remainder
+
+    # if anything goes wrong just fail back to assuming the whole thing is a path
+    return None, pathname
+
 class EntryList:
     """A container for all source directories and files to examine"""
-    def __init__(self, argv, databasePathname):
+    def __init__(self, arguments, databasePathname):
         self.contents = {}
         self.modTime = None
         self.db = None
@@ -98,24 +111,25 @@ class EntryList:
 
             print '# db modTime is ' + str(time.time() - self.modTime) + ' seconds ago'
 
-        # walk argv adding files and directories
-        for entry in argv:
+        # walk arguments adding files and directories
+        for entry in arguments:
             # strip trailing slashes, they are not needed
             entry=entry.rstrip('/')
+            weightAdjust, entry = check_level(entry)
             if os.path.isfile(entry):
-                self.contents[entry]=FileObj(entry, dbTime=self.modTime, db=self.db)
+                self.contents[entry]=FileObj(entry, dbTime=self.modTime, db=self.db, weightAdjust=weightAdjust)
             elif issocket(entry):
                 print '# Skipping a socket ' + entry
             elif os.path.isdir(entry):
-                topDirEntry=DirObj(entry)
+                topDirEntry=DirObj(entry, weightAdjust)
                 self.contents[entry]=topDirEntry
                 for dirName, subdirList, fileList in os.walk(entry, topdown=False):
-                    dirEntry=topDirEntry.place_dir(dirName)
+                    dirEntry=topDirEntry.place_dir(dirName, weightAdjust)
                     for fname in fileList:
                         if issocket(dirEntry.pathname + '/' + fname):
                             print '# Skipping a socket ' + dirEntry.pathname + '/' + fname
                         else:
-                            dirEntry.files[fname]=FileObj(fname, parent=dirEntry, dbTime=self.modTime, db=self.db)
+                            dirEntry.files[fname]=FileObj(fname, parent=dirEntry, dbTime=self.modTime, db=self.db, weightAdjust=weightAdjust)
             else:
                 print "I don't know what this is" + entry
                 sys.exit()
@@ -195,7 +209,8 @@ class HashMap:
     """A wrapper to a python dict with some helper functions"""
     def __init__(self,allFiles):
         self.contentHash = {}
-        self.maxDepth = 1 # we assume at least one file or dir
+        self.minDepth = 1
+        self.maxDepth = 0
         self.allFiles=allFiles # we will use this later to count deletions
 
         for name, e in allFiles.contents.iteritems():
@@ -218,9 +233,10 @@ class HashMap:
                 else:
                     #print '# skipping deleted dir ' + dirEntry.pathname
                     pass
-            td=e.max_depth()
-            if self.maxDepth < td:
-                self.maxDepth=td
+
+            maxd=e.max_depth()
+            if self.maxDepth < maxd:
+                self.maxDepth=maxd
 
     def add_entry(self, entry):                 # Hashmap.add_entry
         """Store a file or directory in the HashMap, indexed by it's hash"""
@@ -228,6 +244,9 @@ class HashMap:
             self.contentHash[entry.hexdigest].append(entry)
         else:
             self.contentHash[entry.hexdigest] = [ entry ]
+
+        if entry.depth < self.minDepth:
+            self.minDepth = entry.depth
 
     def display(self):                          # Hashmap.display
         """Generate a human readable report."""
@@ -280,7 +299,7 @@ class HashMap:
 
         # delete the directories first, in order of
         # increasing depth
-        for currentDepth in xrange(0,self.maxDepth+1):
+        for currentDepth in xrange(self.minDepth-1,self.maxDepth+1):
             for hashval, list in self.contentHash.iteritems():
                 example = list[0]
                 if isinstance(example, DirObj):
@@ -309,16 +328,20 @@ class HashMap:
 
 class DirObj():
     """A directory object which can hold metadata and references to files and subdirectories"""
-    def __init__(self, name, parent=None):
+    def __init__(self, name, weightAdjust, parent=None):
         self.name=name
         self.files={}
         self.deleted=False
         self.winner = None
         self.subdirs={}
+        if weightAdjust != None:
+            self.weightAdjust=weightAdjust
+        else:
+            self.weightAdjust=0
         self.parent=parent
         ancestry=self.get_lineage()
         self.pathname='/'.join(ancestry) 
-        self.depth=len(ancestry)
+        self.depth=len(ancestry) + self.weightAdjust
         self.ignore=self.name in deleteList
 
     def get_lineage(self):                      # DirObj.get_lineage
@@ -357,7 +380,7 @@ class DirObj():
                 entry.display(contents, recurse);
         print '# Directory\t' + str(self.deleted) + '\t' + str(self.ignore) + '\t' + str(self.depth) + '\t' + self.hexdigest + ' ' + self.pathname
 
-    def place_dir(self, inputDirName):                  # DirObj.place_dir
+    def place_dir(self, inputDirName, weightAdjust):    # DirObj.place_dir
         """Matches a pathname to a directory structure and returns a DirObj"""
         #print "looking to place " +  inputDirName + " in " + self.name
         inputDirList=inputDirName.split('/')
@@ -376,12 +399,12 @@ class DirObj():
         nextDirName=inputDirList[0]
         if nextDirName in self.subdirs:
             #print "found " + nextDirName + " in " + self.name
-            return self.subdirs[nextDirName].place_dir('/'.join(inputDirList))
+            return self.subdirs[nextDirName].place_dir('/'.join(inputDirList), weightAdjust)
 
         #print "did not find " + nextDirName + " in " + self.name
-        nextDir=DirObj(nextDirName, self)
+        nextDir=DirObj(nextDirName, weightAdjust, self)
         self.subdirs[nextDirName]=nextDir
-        return nextDir.place_dir('/'.join(inputDirList))
+        return nextDir.place_dir('/'.join(inputDirList), weightAdjust)
 
     def dirwalk(self, topdown=False):                      # DirObj.dirwalk
         """A generator which traverses just subdirectories"""
@@ -424,7 +447,7 @@ class DirObj():
                 emptyMap[self.pathname]=True
         else:
             for fileName, fileEntry in self.files.iteritems():
-                fileEntry.generate_commands(selectFileMap, emptyMap)
+                fileEntry.generate_commands(selectDirMap, selectFileMap, emptyMap)
             for dirName, subdir in self.subdirs.iteritems():
                 subdir.generate_commands(selectDirMap, selectFileMap, emptyMap)
 
@@ -499,20 +522,24 @@ class DirObj():
 
 class FileObj():
     """A file object which stores some metadata"""
-    def __init__(self, name, parent=None, dbTime=None, db=None):
+    def __init__(self, name, parent=None, dbTime=None, db=None, weightAdjust=None):
         self.name=name;
         self.winner=None
         self.parent = parent
         self.deleted=False
+        if weightAdjust != None:
+            self.weightAdjust=weightAdjust
+        else:
+            self.weightAdjust=0
         self.ignore=self.name in deleteList
 
         if self.parent != None:
             ancestry=self.parent.get_lineage()
             self.pathname='/'.join(ancestry) + '/' + self.name
-            self.depth=len(ancestry) + 1
+            self.depth=len(ancestry) + 1 + self.weightAdjust
         else:
             self.pathname=self.name
-            self.depth=0
+            self.depth=self.weightAdjust
 
         statResult = os.stat(self.pathname)
         self.modTime = statResult.st_mtime
@@ -572,7 +599,7 @@ class FileObj():
         """Mark for deletion"""
         self.deleted=True
 
-    def generate_commands(self, selectFileMap, emptyMap):     # FileObj.generate_commands
+    def generate_commands(self, selectDirMap, selectFileMap, emptyMap):     # FileObj.generate_commands
         """Generates delete commands to dedup all contents"""
         if self.deleted and not self.ignore:
             if self.winner != None:
@@ -617,6 +644,7 @@ def clean_database(databasePathname):
         print "# " + databasePathname + " could not be loaded"
         return
     currKey=db.firstkey()
+    count=0
     while currKey != None:
         nextKey=db.nextkey(currKey)
         try:
@@ -625,15 +653,14 @@ def clean_database(databasePathname):
         except OSError:
             del db[currKey]
             sys.stdout.write('*')
+            count=count+1
         sys.stdout.flush()
         currKey=nextKey
-    print
-    print 'reorganizing'
+    print "\nreorganizing " + databasePathname
     db.reorganize()
     db.sync()
     db.close()
-    print 'done!'
-        
+    print 'done cleaning ' + databasePathname + ', removed ' + str(count) + 'dead nodes!'
 
 if __name__ == '__main__':
     startTime=time.time()
