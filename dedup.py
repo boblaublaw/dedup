@@ -656,16 +656,22 @@ class FileObj():
 
 def clean_database(databasePathname):
     """function to remove dead nodes from the hash db"""
-    print '# cleaning database ' + databasePathname
+    print '# loading database ' + databasePathname
     try:
         db = gdbm.open(databasePathname, 'w')
     except:
         print "# " + databasePathname + " could not be loaded"
         return
-    currKey=db.firstkey()
+    # even though gdm supports memory efficient iteration over
+    # all keys, I want to order my traversal across similar
+    # paths to leverage caching of directory files:
+    allKeys=db.keys()
+    print '# finished loaded keys from ' + databasePathname
+    allKeys.sort()
+    print '# finished sorting keys from ' + databasePathname
+    print '# deleting dead nodes'
     count=0
-    while currKey != None:
-        nextKey=db.nextkey(currKey)
+    for currKey in allKeys:
         try:
             os.stat(currKey)
             sys.stdout.write('.')
@@ -674,12 +680,11 @@ def clean_database(databasePathname):
             sys.stdout.write('*')
             count=count+1
         sys.stdout.flush()
-        currKey=nextKey
-    print "\nreorganizing " + databasePathname
+    print "\n# reorganizing " + databasePathname
     db.reorganize()
     db.sync()
     db.close()
-    print 'done cleaning ' + databasePathname + ', removed ' + str(count) + 'dead nodes!'
+    print '# done cleaning ' + databasePathname + ', removed ' + str(count) + 'dead nodes!'
 
 if __name__ == '__main__':
     startTime=time.time()
