@@ -2,10 +2,19 @@
 
 import hashlib, os, sys, stat, anydbm, time
 
+# TODO exclude and include filters
+
+# TODO level adjustments?
+
+# TODO feedback system?
+
+# TODO delimit with " if string contains ) or '
+# 		delimit with ' otherwise
+
 # Constants:
 # This list represents files that may linger in directories 
 # preventing this algorithm from recognizing them as empty.
-deleteList = [ "Icon\r", '.dropbox.cache', '.DS_Store' ]
+deleteList = [ ".lrprev", "Icon\r", '.dropbox.cache', '.DS_Store' ]
 BUF_SIZE = 65536  
 verbose=False
 
@@ -153,9 +162,9 @@ class EntryList:
             winners.sort()
             for winner in winners:
                 losers=selectDirMap[winner]
-                print '#      "' + winner + '"'
+                print "#      '" + winner + "'"
                 for loser in losers:
-                    print 'rm -rf "' + loser + '"'
+                    print "rm -rf '" + loser + "'"
                 print
 
         if len(selectFileMap.keys()):
@@ -166,9 +175,9 @@ class EntryList:
             winners.sort()
             for winner in winners:
                 losers=selectFileMap[winner]
-                print '#  "' + winner + '"'
+                print "#      '" + winner + "'"
                 for loser in losers:
-                    print 'rm "' + loser + '"'
+                    print "rm -rf '" + loser + "'"
                 print
         
         if len(emptyMap.keys()):
@@ -177,7 +186,7 @@ class EntryList:
             empties = emptyMap.keys()
             empties.sort()
             for k in empties:
-                print 'rm -rf "' + k + '"'
+                print "rm -rf '" + k + "'"
 
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
@@ -564,6 +573,9 @@ class FileObj():
         """Generates delete commands to dedup all contents"""
         if self.deleted and not self.ignore:
             if self.winner != None:
+                if self.bytes != self.winner.bytes:
+                    print '# BIRTHDAY CRISIS! matched hashes and mismatched sizes!'
+                    sys.exit(-1)
                 if self.winner.pathname in selectFileMap:
                     selectFileMap[self.winner.pathname].append(self.pathname)
                 else:
@@ -640,4 +652,4 @@ if __name__ == '__main__':
     print '# total bytes marked for deletion (not including directory files): ' + str(allFiles.count_deleted_bytes()) + '\n'
     print '# total running time: ' + str(endTime - startTime) + ' seconds.'
 
-# vim: set sw=4 ts=4:
+# vim: set noet sw=4 ts=4:
