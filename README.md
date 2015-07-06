@@ -15,7 +15,7 @@ This project is similar to several of these projects in a few ways:
  * **THIS IS BETA SOFTWARE AND YOU ASSUME ALL RESPONSIBILITY FOR MISTAKES AND/OR LOST DATA**
  * Having gotten that out of the way, this script doesn't actually delete anything.  Instead a shell script is produced, intended for review before execution.
 
-However, unlike these other projects, this project has a few additional features I found to be absent.
+However, unlike these other projects, this project has a few additional features I found to be absent.  See the "Features" section below for details.
 
 ## Utilization
 
