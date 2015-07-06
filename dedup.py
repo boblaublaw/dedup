@@ -80,7 +80,6 @@ def check_int(s):
     return s.isdigit()
 
 def check_level(pathname):
-
     parts=pathname.split(':')
     if len(parts) > 1:
         firstPart=parts.pop(0)
@@ -115,7 +114,10 @@ class EntryList:
         for entry in arguments:
             # strip trailing slashes, they are not needed
             entry=entry.rstrip('/')
+
+            # check if a weight has been provided for this argument
             weightAdjust, entry = check_level(entry)
+
             if os.path.isfile(entry):
                 self.contents[entry]=FileObj(entry, dbTime=self.modTime, db=self.db, weightAdjust=weightAdjust)
             elif issocket(entry):
@@ -216,23 +218,23 @@ class HashMap:
         for name, e in allFiles.contents.iteritems():
             if isinstance(e, FileObj):
                 self.add_entry(e)
-                continue
-            for dirEntry in e.dirwalk():
-                #print '\n# adding dir ' + dirEntry.pathname
-                if not dirEntry.deleted:
-                    for name, fileEntry in dirEntry.files.iteritems():
-                        if not fileEntry.deleted:
-                            self.add_entry(fileEntry)
-                            #print '# added file ' + fileEntry.pathname
-                        else:
-                            #print '# skipping deleted file ' + fileEntry.pathname
-                            pass
-                    dirEntry.finalize()
-                    self.add_entry(dirEntry)
-                    #print '# added dir ' + dirEntry.pathname
-                else:
-                    #print '# skipping deleted dir ' + dirEntry.pathname
-                    pass
+            else:
+                for dirEntry in e.dirwalk():
+                    #print '\n# adding dir ' + dirEntry.pathname
+                    if not dirEntry.deleted:
+                        for name, fileEntry in dirEntry.files.iteritems():
+                            if not fileEntry.deleted:
+                                self.add_entry(fileEntry)
+                                #print '# added file ' + fileEntry.pathname
+                            else:
+                                #print '# skipping deleted file ' + fileEntry.pathname
+                                pass
+                        dirEntry.finalize()
+                        self.add_entry(dirEntry)
+                        #print '# added dir ' + dirEntry.pathname
+                    else:
+                        #print '# skipping deleted dir ' + dirEntry.pathname
+                        pass
 
             maxd=e.max_depth()
             if self.maxDepth < maxd:
@@ -240,6 +242,7 @@ class HashMap:
 
     def add_entry(self, entry):                 # Hashmap.add_entry
         """Store a file or directory in the HashMap, indexed by it's hash"""
+
         if entry.hexdigest in self.contentHash:
             self.contentHash[entry.hexdigest].append(entry)
         else:
@@ -299,6 +302,8 @@ class HashMap:
 
         # delete the directories first, in order of
         # increasing depth
+        if verbose:
+            print '# checking candidates from depth ' + str(self.minDepth) + ' through ' + str(self.maxDepth)
         for currentDepth in xrange(self.minDepth-1,self.maxDepth+1):
             for hashval, list in self.contentHash.iteritems():
                 example = list[0]
@@ -536,7 +541,7 @@ class FileObj():
         if self.parent != None:
             ancestry=self.parent.get_lineage()
             self.pathname='/'.join(ancestry) + '/' + self.name
-            self.depth=len(ancestry) + 1 + self.weightAdjust
+            self.depth=len(ancestry) + self.weightAdjust
         else:
             self.pathname=self.name
             self.depth=self.weightAdjust
@@ -590,6 +595,9 @@ class FileObj():
             #else:
             #    print '# inserting db entry for ' + self.pathname
             db[self.pathname]=self.hexdigest
+
+    def max_depth(self):                # FileObj.max_depth
+        return self.depth
 
     def walk(self):                     # FileObj.walk
         """Used to fit into other generators"""
@@ -674,8 +682,7 @@ if __name__ == '__main__':
         try:
             nextArg=sys.argv[0]     # peek ahead
         except IndexError:
-            nextArg=None
-
+            break                   # no more args
         again=False
         if nextArg == '-v' or nextArg == '--verbose':
             sys.argv.pop(0)
