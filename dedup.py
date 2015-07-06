@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import hashlib, os, sys, stat, anydbm, time, gdbm
+import hashlib, os, sys, stat, time, gdbm
 
 # TODO exclude and include filters
 
@@ -92,7 +92,7 @@ class EntryList:
                 print "# db " + databasePathname + " doesn't exist yet"
                 self.modTime = None
 
-            self.db = anydbm.open(databasePathname, 'c')
+            self.db = gdm.open(databasePathname, 'c')
             if self.modTime == None:
                 self.modTime = time.time()
 
@@ -612,11 +612,28 @@ def clean_database(databasePathname):
     """function to remove dead nodes from the hash db"""
     print '# cleaning database ' + databasePathname
     try:
-        db = anydbm.open(databasePathname, 'w')
+        db = gdbm.open(databasePathname, 'w')
     except:
         print "# " + databasePathname + " could not be loaded"
         return
-    
+    currKey=db.firstkey()
+    while currKey != None:
+        nextKey=db.nextkey(currKey)
+        try:
+            os.stat(currKey)
+            sys.stdout.write('.')
+        except OSError:
+            del db[currKey]
+            sys.stdout.write('*')
+        sys.stdout.flush()
+        currKey=nextKey
+    print
+    print 'reorganizing'
+    db.reorganize()
+    db.sync()
+    db.close()
+    print 'done!'
+        
 
 if __name__ == '__main__':
     startTime=time.time()
