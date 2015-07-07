@@ -55,9 +55,9 @@ Simplest Example:
 
 ### Comparing And Removing Redundant Directories
 
-Comparing files for redundancy is comparatively trivial.  One could achieve deduplication by ignoring directories and removing empty directories afterwards.  However, this produces a larger number of output commands where one recursive delete would accomplish the same goal.
+Comparing files for redundancy is comparatively trivial.  One could achieve deduplication by ignoring directories and removing empty directories afterwards.  However, this produces a larger number of output commands.  One recursive delete accomplishes the same goal with more readability.
 
-Thus, this:
+Thus, in cases where ```some_dir``` would be left empty after deduplication, this:
 ```
 rm -rf some_dir
 ```
@@ -68,7 +68,6 @@ rm some_dir/file2
 ...
 rm some_dir/fileN
 ```
-in cases where ```some_dir``` would be left empty after deduplication.
 
 ### Winner Selection Strategy
 
@@ -97,7 +96,7 @@ However, to prefer to keep files in ```somedir3```, even though it has a deeper 
 ```
      dedup.py 10:somedir somedir3
 ```
-Under the hood, this has the effect of adding 10 to the depth of every file and directory in ```somedir```.  It is advisable to use a weighted score that is GREATER than the maximum directory depth so that selection results are never mixed.  (Refer to the "--stagger-path" option to see how dedup.py can automatically calculate depths for you.)
+Under the hood, this has the effect of adding 10 to the depth of every file and directory in ```somedir```.  It is advisable to use a weighted score that is GREATER than the maximum directory depth so that selection results are never mixed.  (Refer to the "--stagger-path" option to see how dedup.py can automatically calculate appropriate weights for you.)
 
 Conversely, you can also add a "negative weight" to a directory you prefer:
 ```
@@ -121,14 +120,14 @@ All files in ```path1``` will be preferred to those in ```path2``` and ```path3`
 
 Given how this tool compares files and directories, empty files (with 0 bytes) and empty subdirectories (with no children) confuse this algorithm.  Additionally, I assert empty directories clutter the resulting structure.  However, in some cases empty directories are files may be **REQUIRED** for the operation of certain software.  There are many instances where a program may count on simply the existence of a file to signify something meaningful, such as lock files.  *Be very careful to understand the purpose of every file or directory you delete.*
 
-
 ### Minimizing Output Commands
 
 This tool will make several passes over the provided directory structures, analyzing for redundancy and empty files and directories until no more files or directories are marked for deletion.  
 
-Once this analysis is complete, a list of deletion commands is generated, resulting in fewer commands to review.
+Once this analysis is complete, a minimal list of deletion commands is generated, resulting in fewer commands to review.  Often subsequent executions of dedup.py will be required, after moving, renaming, or deleting files manually.  (The -db flag is helpful for improving performance of subsequent runs.)
 
 ### Maximizing Trust and Minimizing Error
 
-As mentioned in the directory comparison discussion, it is my goal to simplify the generated output script to maximize the ease of review and minimize the chance of error.  To this end I provide shell script comments before each delete command which offer an explanation as to why it is safe to delete the candidate file or directory.
-  
+As mentioned in the directory comparison discussion, it is my goal to simplify the generated output script to maximize the ease of review and minimize the chance of error.  To this end I try to provide shell script comments before each delete command which offer an explanation as to why it is safe to delete the candidate file or directory.
+
+If directories and files are marked for deletion in a given directory, such that the parent directory is deemed deletable, the parent directory delete command does not yet include rationalization for the deletion of all the children.  Please use --verbose mode if you want to see more explanation for each file and directory.
