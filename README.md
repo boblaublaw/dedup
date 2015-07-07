@@ -26,7 +26,7 @@ sh commands.sh                                            # execute commands
 
 Where path can be any file or directory and where options can be:
  * -v/--verbose                         - show some rationale
- * -s/--stagger-depths                  - prefer input arguments from left to 
+ * -s/--stagger-paths                   - prefer input arguments from left to 
                                           right.  (automatically weight each
                                           argument to prevent overlap.)
  * -db/--database path_to_db_file       - cache hash results in a database for 
