@@ -10,7 +10,7 @@ import hashlib, os, sys, stat, time, gdbm
 # preventing this algorithm from recognizing them as empty.
 # we market them as deletable, even if we do NOT have other
 # copies available:
-deleteList = [ ".lrprev", "Icon\r", '.dropbox.cache', '.DS_Store' ]
+deleteList = [ "album.dat", "album.dat.lock", "photos.dat", "photos.dat.lock", "Thumbs.db", ".lrprev", "Icon\r", '.dropbox.cache', '.DS_Store' ]
 
 # This list describes files and directories we do not want to risk
 # messing with.  If we encounter these, never mark them as deletable.
@@ -99,14 +99,15 @@ def check_level(pathname):
             return int(firstPart), remainder
 
     # if anything goes wrong just fail back to assuming the whole thing is a path
-    return None, pathname
+    return 0, pathname
 
 class EntryList:
     """A container for all source directories and files to examine"""
-    def __init__(self, arguments, databasePathname):
+    def __init__(self, arguments, databasePathname, staggerPaths):
         self.contents = {}
         self.modTime = None
         self.db = None
+        stagger=0;
 
         if databasePathname != None:
             try:
@@ -130,10 +131,16 @@ class EntryList:
             weightAdjust, entry = check_level(entry)
 
             if os.path.isfile(entry):
+                if staggerPaths:
+                    weightAdjust=weightAdjust + stagger
                 self.contents[entry]=FileObj(entry, dbTime=self.modTime, db=self.db, weightAdjust=weightAdjust)
+                if staggerPaths:
+                    stagger=stagger + self.contents[entry].depth
             elif issocket(entry):
                 print '# Skipping a socket ' + entry
             elif os.path.isdir(entry):
+                if staggerPaths:
+                    weightAdjust=weightAdjust + stagger
                 topDirEntry=DirObj(entry, weightAdjust)
                 self.contents[entry]=topDirEntry
                 for dirName, subdirList, fileList in os.walk(entry, topdown=False):
@@ -143,6 +150,8 @@ class EntryList:
                             print '# Skipping a socket ' + dirEntry.pathname + '/' + fname
                         else:
                             dirEntry.files[fname]=FileObj(fname, parent=dirEntry, dbTime=self.modTime, db=self.db, weightAdjust=weightAdjust)
+                if staggerPaths:
+                    stagger=topDirEntry.max_depth()
             else:
                 print "I don't know what this is" + entry
                 sys.exit()
@@ -344,21 +353,20 @@ class HashMap:
 
 class DirObj():
     """A directory object which can hold metadata and references to files and subdirectories"""
-    def __init__(self, name, weightAdjust, parent=None):
+    def __init__(self, name, weightAdjust=0, parent=None):
         self.name=name
         self.files={}
         self.deleted=False
         self.winner = None
         self.subdirs={}
-        if weightAdjust != None:
-            self.weightAdjust=weightAdjust
-        else:
-            self.weightAdjust=0
+        self.weightAdjust=weightAdjust
         self.parent=parent
         ancestry=self.get_lineage()
         self.pathname='/'.join(ancestry) 
         self.depth=len(ancestry) + self.weightAdjust
         self.ignore=self.name in deleteList
+        if verbose:
+            print '# ' + self.pathname + ' has an adjusted depth of ' + str(self.depth)
 
     def get_lineage(self):                      # DirObj.get_lineage
         """Crawls back up the directory tree and returns a list of parents"""
@@ -538,15 +546,12 @@ class DirObj():
 
 class FileObj():
     """A file object which stores some metadata"""
-    def __init__(self, name, parent=None, dbTime=None, db=None, weightAdjust=None):
+    def __init__(self, name, parent=None, dbTime=None, db=None, weightAdjust=0):
         self.name=name;
         self.winner=None
         self.parent = parent
         self.deleted=False
-        if weightAdjust != None:
-            self.weightAdjust=weightAdjust
-        else:
-            self.weightAdjust=0
+        self.weightAdjust=weightAdjust
         self.ignore=self.name in deleteList
 
         if self.parent != None:
@@ -556,6 +561,8 @@ class FileObj():
         else:
             self.pathname=self.name
             self.depth=self.weightAdjust
+        if verbose:
+            print '# ' + self.pathname + ' has an adjusted depth of ' + str(self.depth)
 
         statResult = os.stat(self.pathname)
         self.modTime = statResult.st_mtime
@@ -661,7 +668,8 @@ def clean_database(databasePathname):
         db = gdbm.open(databasePathname, 'w')
     except:
         print "# " + databasePathname + " could not be loaded"
-        return
+        sys.exit(-1)
+
     # even though gdbm supports memory efficient iteration over
     # all keys, I want to order my traversal across similar
     # paths to leverage caching of directory files:
@@ -693,6 +701,7 @@ if __name__ == '__main__':
     # defaults
     databasePathname=None
     cleanDatabase=False
+    staggerPaths=False
     again=True
     while again:
         try:
@@ -716,6 +725,10 @@ if __name__ == '__main__':
             sys.argv.pop(0)
             cleanDatabase=True
             again=True
+        if nextArg == '-s' or nextArg == '--stagger-paths':
+            sys.argv.pop(0)
+            staggerPaths=True
+            again=True
 
     if databasePathname != None:
         print '# set to use database: ' + databasePathname
@@ -726,7 +739,7 @@ if __name__ == '__main__':
         print '# database file must be specified for --clean-database command (use -db)'
         sys.exit(-1)
 
-    allFiles = EntryList(sys.argv, databasePathname)
+    allFiles = EntryList(sys.argv, databasePathname, staggerPaths)
     print '# files loaded'
     passCount=0
     deleted=1                   # fake value to get the loop started
