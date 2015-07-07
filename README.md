@@ -1,5 +1,11 @@
 # dedup
 
+### File and Directory Deduplication Tool ###
+
+This project has two goals:
+ * Improve disk utilization by reducing redundant copies of files on disk.  (If this is your only goal, consider a dedup filesystem like ZFS: https://blogs.oracle.com/bonwick/entry/zfs_dedup)
+ * Make it easier to confidently delete entire directories and directory trees by consolidating deduplication analysis according to user preferences.
+
 At this time of this writing, there are several tools similar to this one on github:
  * https://github.com/hgrecco/dedup
  * https://github.com/alessandro-gentilini/keep-the-best
@@ -7,9 +13,6 @@ At this time of this writing, there are several tools similar to this one on git
  * and no doubt more...
 
 This project is similar to several of these projects in a few ways:
- * It is intended to solve two distinct problems:
-   * Improve disk utilization by reducing redundant copies.  (If this is your only goal, consider a dedup filesystem like ZFS: https://blogs.oracle.com/bonwick/entry/zfs_dedup)
-   * Reduce clutter and improve file system organization.
  * File comparisons are made by hashing their contents.
  * Caching hash results is supported.  Modification time is examined to update cache results when needed.
  * **THIS IS BETA SOFTWARE AND YOU ASSUME ALL RESPONSIBILITY FOR MISTAKES AND/OR LOST DATA**
@@ -105,7 +108,7 @@ Just remember that elements closer to the "top" of input directory structures ar
 
 ### Advanced Winner Selection Strategy - Automatic Weight Calculations
 
-By selecting the "stagger paths" mode (with the -s flag), dedup.py will automatically calculate weights for each input argument such that leftmost arguments are preferred in the case of all file and directory collisions.
+By selecting the "stagger paths" mode (with the -s flag), dedup.py will automatically calculate appropriate weights for each input argument based on their maximum directory depth such that leftmost arguments are preferred in the case of all file and directory collisions.
 
 Example:
 ```
