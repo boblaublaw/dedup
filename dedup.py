@@ -135,7 +135,7 @@ class EntryList:
 
             if dbm == 'gdbm':
                 self.db = gdbm.open(databasePathname, 'c')
-            elif dbm == 'any':
+            elif dbm == 'anydbm':
                 self.db = anydbm.open(databasePathname, 'c')
 
             if self.modTime == None:
