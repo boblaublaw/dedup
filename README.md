@@ -25,9 +25,9 @@ However, unlike these other projects, this project has a few additional features
 ## Utilization
 
 ```
-dedup.py [ options ] [weight:]path1 [weight:]path2 [...] > commands.sh  # generate command list
-vi commands.sh                                                          # review command list
-sh commands.sh                                                          # execute commands
+dedup.py [ opts ] [weight:]path1 [weight:]path2 [...] > cmds.sh # generate cmds
+vi commands.sh                                                  # review cmds
+sh commands.sh                                                  # execute cmds
 
 Where path can be any file or directory with an optional weight prefix.
 
