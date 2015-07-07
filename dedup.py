@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import hashlib, os, sys, stat, time, gdbm
+import hashlib, os, sys, stat, time
 
 # TODO exclude and include filters
 
@@ -10,7 +10,11 @@ import hashlib, os, sys, stat, time, gdbm
 # preventing this algorithm from recognizing them as empty.
 # we market them as deletable, even if we do NOT have other
 # copies available:
-deleteList = [ "album.dat", "album.dat.lock", "photos.dat", "photos.dat.lock", "Thumbs.db", ".lrprev", "Icon\r", '.dropbox.cache', '.DS_Store' ]
+deleteList =    [ 
+                   "album.dat", "album.dat.lock", "photos.dat", 
+                   "photos.dat.lock", "Thumbs.db", ".lrprev", "Icon\r", 
+                    '.dropbox.cache', '.DS_Store' 
+                ]
 
 # This list describes files and directories we do not want to risk
 # messing with.  If we encounter these, never mark them as deletable.
@@ -111,12 +115,27 @@ class EntryList:
 
         if databasePathname != None:
             try:
+                import gdbm
+                dbm='gdbm'
+            except:
+                dbm='anydbm'
+                print '# no gdbm implementation found, trying for anydbm'
+                try:
+                    import anydbm
+                except:
+                    print '# no dbm implementation found!'
+                    sys.exit(-1)
+            try:
                 self.modTime = os.stat(databasePathname).st_mtime
             except OSError:
                 print "# db " + databasePathname + " doesn't exist yet"
                 self.modTime = None
 
-            self.db = gdbm.open(databasePathname, 'c')
+            if dbm == 'gdbm':
+                self.db = gdbm.open(databasePathname, 'c')
+            elif dbm == 'any':
+                self.db = anydbm.open(databasePathname, 'c')
+
             if self.modTime == None:
                 self.modTime = time.time()
 
@@ -663,6 +682,11 @@ class FileObj():
 
 def clean_database(databasePathname):
     """function to remove dead nodes from the hash db"""
+
+    if dbm != 'gdbm':
+        print '# non-gdbm databases do not support the reorganize method!'
+        sys.exit(-1)
+        
     print '# loading database ' + databasePathname
     try:
         db = gdbm.open(databasePathname, 'w')
