@@ -365,8 +365,8 @@ class DirObj():
         self.pathname='/'.join(ancestry) 
         self.depth=len(ancestry) + self.weightAdjust
         self.ignore=self.name in deleteList
-        if verbose:
-            print '# ' + self.pathname + ' has an adjusted depth of ' + str(self.depth)
+        #if verbose:
+        #    print '# ' + self.pathname + ' has an adjusted depth of ' + str(self.depth)
 
     def get_lineage(self):                      # DirObj.get_lineage
         """Crawls back up the directory tree and returns a list of parents"""
@@ -561,8 +561,8 @@ class FileObj():
         else:
             self.pathname=self.name
             self.depth=self.weightAdjust
-        if verbose:
-            print '# ' + self.pathname + ' has an adjusted depth of ' + str(self.depth)
+        #if verbose:
+        #    print '# ' + self.pathname + ' has an adjusted depth of ' + str(self.depth)
 
         statResult = os.stat(self.pathname)
         self.modTime = statResult.st_mtime
