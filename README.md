@@ -86,9 +86,20 @@ The first file would be selected to keep and the latter three would be marked fo
 
 This strategy is effective in simplifying structures which have been copied into their own subdirectories.
 
-### Advanced Winner Selection Strategy - Using Weighted Comparisons
+### Advanced Winner Selection Strategy - Preferred Outcomes
 
-If instead you prefer that ```somedir3/somedir4/somedir5/file3``` be selected as the keeper of the candidate examples above, you can provide an optional *weighted score* to each directory or file at the time of invocation.
+By selecting the "stagger paths" mode (with the -s flag), dedup.py will automatically prefer the leftmost arguments supplied from the command line.
+
+Example:
+```
+     dedup.py -s path1 path2 path3
+```
+
+All files in ```path1``` will be preferred to those in ```path2``` and ```path3```.  Likewise, All files in ```path2``` will be prefered to files in ```path3```.
+
+### Really Advanced Winner Selection Strategy - Using Weighted Comparisons
+
+If instead you want more control over weighting preferences, you can provide an optional *weighted score* to each directory or file at the time of invocation.
 
 An ordinary run of dedup.py might look like this:
 ```
@@ -98,7 +109,7 @@ However, to prefer to keep files in ```somedir3```, even though it has a deeper 
 ```
      dedup.py 10:somedir somedir3
 ```
-Under the hood, this has the effect of adding 10 to the depth of every file and directory in ```somedir```.  It is advisable to use a weighted score that is GREATER than the maximum directory depth so that selection results are never mixed.  (Refer to the "--stagger-path" option to see how dedup.py can automatically calculate appropriate weights for you.)
+Under the hood, this has the effect of adding 10 to the depth of every file and directory in ```somedir```.  It is advisable to use a weighted score that is GREATER than the maximum directory depth so that selection results are never mixed.  (This is exactly what the "-s/--stagger-path" option does to automatically calculate appropriate weights for you.)
 
 Conversely, you can also add a "negative weight" to a directory you prefer:
 ```
@@ -106,17 +117,6 @@ Conversely, you can also add a "negative weight" to a directory you prefer:
 ```
 
 Just remember that elements closer to the "top" of input directory structures are what will be retained.  Even if the concept of a "negative" directory depth would suggest parent directories that do not actually exist, dedup.py will not actually attempt to navigate above the specified paths.
-
-### Advanced Winner Selection Strategy - Automatic Weight Calculations
-
-By selecting the "stagger paths" mode (with the -s flag), dedup.py will automatically calculate appropriate weights for each input argument based on their maximum directory depth such that leftmost arguments are preferred in the case of all file and directory collisions.
-
-Example:
-```
-     dedup.py -s path1 path2 path3
-```
-
-All files in ```path1``` will be preferred to those in ```path2``` and ```path3```.  Likewise, All files in ```path2``` will be prefered to files in ```path3```.
 
 ### Empty Files and Directories
 
