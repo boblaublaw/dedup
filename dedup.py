@@ -6,6 +6,10 @@ import sys
 import stat
 import time
 
+__all__ = ["FileObj", "DirObj", "EntryObj", "check_level", "issocket",
+            "clean_database", "resolve_candidates", "generate_delete",
+            "check_int" ]
+
 # TODO exclude and include filters
 
 # CONSTANTS:
@@ -13,14 +17,14 @@ import time
 # This list represents files that may linger in directories preventing
 # this algorithm from recognizing them as empty.  we mark them as
 # deletable, even if we do NOT have other copies available:
-deleteList =    [ "album.dat", "album.dat.lock", "photos.dat",
+DELETE_LIST =    [ "album.dat", "album.dat.lock", "photos.dat",
                "photos.dat.lock", "Thumbs.db", ".lrprev", "Icon\r",
                 '.dropbox.cache', '.DS_Store' ]
 
 # This list describes files and directories we do not want to risk
 # messing with.  If we encounter these, never mark them as deletable.
 # TODO - implement this
-doNotDeletList = []
+DO_NOT_DELETE_LIST = []
 
 # size of hashing buffer:
 BUF_SIZE = 65536
@@ -28,7 +32,7 @@ BUF_SIZE = 65536
 # default to quiet mode:
 verbose = False
 
-def resolve_candidates(candidates, currentDepth = None):
+def resolve_candidates(candidates, currentDepth=None):
     """Helper function which examines a list of candidate objects with
     identical contents (as determined elsewhere) to determine which of
     the candidates is the "keeper" (or winner).  The other candidates
@@ -40,7 +44,7 @@ def resolve_candidates(candidates, currentDepth = None):
     losers = []
 
     for candidate in candidates:
-        if currentDepth != None and candidate.depth > currentDepth:
+        if currentDepth is None and candidate.depth > currentDepth:
             # this candidate is too deep
             continue
         if candidate.depth not in depthMap:
@@ -117,16 +121,16 @@ class EntryList:
         self.db = None
         stagger = 0;
 
-        if databasePathname != None:
+        if databasePathname is not None:
             try:
                 import gdbm
                 dbm = 'gdbm'
-            except:
+            except ImportError:
                 dbm = 'anydbm'
                 print '# no gdbm implementation found, trying anydbm'
                 try:
                     import anydbm
-                except:
+                except ImportError:
                     print '# no dbm implementation found!'
                     sys.exit(-1)
             try:
@@ -140,7 +144,7 @@ class EntryList:
             elif dbm == 'anydbm':
                 self.db = anydbm.open(databasePathname, 'c')
 
-            if self.modTime == None:
+            if self.modTime is None:
                 self.modTime = time.time()
 
             print '# db last modification time is',
@@ -191,7 +195,7 @@ class EntryList:
             else:
                 print "I don't know what this is" + entry
                 sys.exit()
-        if self.db != None:
+        if self.db is not None:
             self.db.close()
 
     # EntryList.count_deleted_bytes
@@ -357,11 +361,11 @@ class HashMap:
         prevCount = self.allFiles.count_deleted()
 
         # no need to resolve uniques, so remove them from the HashMap
-        deleteList=[]
+        singles=[]
         for hashval, list in self.contentHash.iteritems():
             if len(list) == 1:
-                deleteList.append(hashval)
-        for e in deleteList:
+                singles.append(hashval)
+        for e in singles:
             del self.contentHash[e]
 
         # delete the directories first, in order of
@@ -374,7 +378,7 @@ class HashMap:
                 example = list[0]
                 if isinstance(example, DirObj):
                     win, losers = resolve_candidates(list, currentDepth)
-                    if losers != None:
+                    if losers is not None:
                         for loser in losers:
                             if not loser.deleted:
                                 if verbose:
@@ -404,7 +408,7 @@ class DirObj():
     """A directory object which can hold metadata and references to
     files and subdirectories.
     """
-    def __init__(self, name, weightAdjust = 0, parent = None):
+    def __init__(self, name, weightAdjust=0, parent=None):
         self.name = name
         self.files={}
         self.deleted = False
@@ -415,14 +419,14 @@ class DirObj():
         ancestry = self.get_lineage()
         self.pathname='/'.join(ancestry)
         self.depth = len(ancestry) + self.weightAdjust
-        self.ignore = self.name in deleteList
+        self.ignore = self.name in DELETE_LIST
 
     # DirObj.get_lineage
     def get_lineage(self):
         """Crawls back up the directory tree and returns a list of
         parents.
         """
-        if self.parent == None:
+        if self.parent is None:
             return self.name.split('/')
         ancestry = self.parent.get_lineage()
         ancestry.append(self.name)
@@ -445,7 +449,7 @@ class DirObj():
             return md
 
     # DirObj.display
-    def display(self, contents = False, recurse = False):
+    def display(self, contents=False, recurse=False):
         """Generate a human readable report.
                 'contents' controls if files are displayed
                 'recurse' controls if subdirs are displayed
@@ -490,7 +494,7 @@ class DirObj():
         return nextDir.place_dir('/'.join(inputDirList), weightAdjust)
 
     # DirObj.dirwalk
-    def dirwalk(self, topdown = False):
+    def dirwalk(self, topdown=False):
         """A generator which traverses just subdirectories"""
         if topdown:
             yield self
@@ -525,7 +529,7 @@ class DirObj():
         directory.
         """
         if self.deleted:
-            if self.winner != None:
+            if self.winner is not None:
                 if self.winner.pathname in selectDirMap:
                     # use existing loser list:
                     loserList = selectDirMap[self.winner.pathname]
@@ -570,11 +574,11 @@ class DirObj():
         """
         if (self.is_empty()
                 and not self.deleted
-                and self.parent == None):
+                and self.parent is None):
             self.delete()
         elif (self.is_empty()
                 and not self.deleted
-                and self.parent != None
+                and self.parent is not None
                 and not self.parent.is_empty()):
             self.delete()
         else:
@@ -628,16 +632,16 @@ class DirObj():
 
 class FileObj():
     """A file object which stores some metadata"""
-    def __init__(self, name, parent = None, dbTime = None,
+    def __init__(self, name, parent=None, dbTime=None,
                     db = None, weightAdjust = 0):
         self.name = name;
         self.winner = None
         self.parent = parent
         self.deleted = False
         self.weightAdjust = weightAdjust
-        self.ignore = self.name in deleteList
+        self.ignore = self.name in DELETE_LIST
 
-        if self.parent != None:
+        if self.parent is not None:
             ancestry = self.parent.get_lineage()
             self.pathname='/'.join(ancestry) + '/' + self.name
             self.depth = len(ancestry) + self.weightAdjust
@@ -655,7 +659,7 @@ class FileObj():
             self.hexdigest='da39a3ee5e6b4b0d3255bfef95601890afd80709'
             return
 
-        if db != None and self.pathname in db:
+        if db is not None and self.pathname in db:
             # we've a cached hash value for this pathname
             if self.modTime > dbTime:
                 # file is newer than db
@@ -680,7 +684,7 @@ class FileObj():
         if verbose:
 			print '# computed new hash for ' + self.pathname
 
-        if db != None:
+        if db is not None:
             # add/update the cached hash value for this entry:
             db[self.pathname]=self.hexdigest
 
@@ -702,7 +706,7 @@ class FileObj():
     def generate_commands(self, selectDirMap, selectFileMap, emptyMap):
         """Generates delete commands to dedup all contents"""
         if self.deleted and not self.ignore:
-            if self.winner != None:
+            if self.winner is not None:
                 # just a trivial check to confirm hash matches:
                 if self.bytes != self.winner.bytes:
                     print '# BIRTHDAY LOTTERY CRISIS!'
@@ -726,7 +730,7 @@ class FileObj():
         return False            # can't prune a file
 
     # FileObj.display
-    def display(self, contents = False, recurse = False):
+    def display(self, contents=False, recurse=False):
         """Generate a human readable report."""
         print '# File\t\t' + str(self.deleted) + '\t',
         print str(self.ignore) + '\t' + str(self.depth) + '\t',
@@ -760,7 +764,7 @@ def clean_database(databasePathname):
     print '# loading database ' + databasePathname
     try:
         db = gdbm.open(databasePathname, 'w')
-    except:
+    except: # TODO name the exception here
         print "# " + databasePathname + " could not be loaded"
         sys.exit(-1)
 
@@ -776,11 +780,12 @@ def clean_database(databasePathname):
     for currKey in allKeys:
         try:
             os.stat(currKey)
-            sys.stdout.write('.')
         except OSError:
             del db[currKey]
             sys.stdout.write('*')
             count = count+1
+        else:
+            sys.stdout.write('.')
         sys.stdout.flush()
     print "\n# reorganizing " + databasePathname
     db.reorganize()
@@ -825,7 +830,7 @@ if __name__ == '__main__':
             staggerPaths = True
             again = True
 
-    if databasePathname != None:
+    if databasePathname is not None:
         print '# set to use database: ' + databasePathname
         if cleanDatabase:
             clean_database(databasePathname)
