@@ -6,9 +6,7 @@ import sys
 import stat
 import time
 
-__all__ = ["FileObj", "DirObj", "EntryObj", "check_level", "issocket",
-            "clean_database", "resolve_candidates", "generate_delete",
-            "check_int" ]
+__all__ = ["FileObj", "DirObj", "EntryObj", "clean_database" ]
 
 # TODO exclude and include filters
 
