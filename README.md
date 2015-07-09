@@ -36,12 +36,12 @@ Where options can be:
  * -s/--stagger-paths                   - prefer input arguments from left to 
                                           right.  (automatically weight each
                                           argument to prevent overlap.)
- * -db/--database path_to_db_file       - cache hash results in a database for 
+ * -d/--database path_to_db_file        - cache hash results in a database for 
                                           faster re-runs on large dirs. (When
                                           specifying a pathname, do not supply
                                           the .db extension.  anydbm adds this
                                           on its own.)
- * -cdb/--clean-database                - install of calculating digests and
+ * -c/--clean-database                  - install of calculating digests and
                                           eliminating duplicates, dedup will
                                           check every file in the provided db
                                           to check if it exists.  if it does not

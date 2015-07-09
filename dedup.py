@@ -5,6 +5,7 @@ import os
 import sys
 import stat
 import time
+import argparse
 
 # what to export when other scripts import this module:
 __all__ = ["FileObj", "DirObj", "EntryObj", "clean_database" ]
@@ -28,8 +29,12 @@ DO_NOT_DELETE_LIST = []
 # size of hashing buffer:
 BUF_SIZE = 65536
 
-# default to quiet mode:
-verbose = False
+# defaults
+verbosity = 0
+databasePathname = None
+cleanDatabase = False
+staggerPaths = False
+dbm = None
 
 def resolve_candidates(candidates, currentDepth=None):
     """Helper function which examines a list of candidate objects with
@@ -369,7 +374,7 @@ class HashMap:
 
         # delete the directories first, in order of
         # increasing depth
-        if verbose:
+        if verbosity > 0:
             print '# checking candidates from depth',
             print str(self.minDepth) + ' through ' + str(self.maxDepth)
         for currentDepth in xrange(self.minDepth-1,self.maxDepth+1):
@@ -380,7 +385,7 @@ class HashMap:
                     if losers is not None:
                         for loser in losers:
                             if not loser.deleted:
-                                if verbose:
+                                if verbosity > 0:
                                     print '# dir "' + loser.pathname,
                                     print '" covered by "',
                                     print win.pathname + '"'
@@ -394,7 +399,7 @@ class HashMap:
                 win, losers = resolve_candidates(list)
                 for loser in losers:
                     if not loser.deleted:
-                        if verbose:
+                        if verbosity > 0:
                             print '# file "' + loser.pathname,
                             print '" covered by "' + win.pathname + '"'
                         self.delete(loser)
@@ -665,7 +670,7 @@ class FileObj():
                 pass
             else:
                 # db is newer than file
-                if verbose:
+                if verbosity > 0:
 					print '# ' + self.pathname + ' already in db'
                 self.hexdigest = db[self.pathname]
                 return
@@ -680,7 +685,7 @@ class FileObj():
                 sha1.update(data)
         self.hexdigest = sha1.hexdigest()
 
-        if verbose:
+        if verbosity > 0:
 			print '# computed new hash for ' + self.pathname
 
         if db is not None:
@@ -795,39 +800,28 @@ def clean_database(databasePathname):
 
 if __name__ == '__main__':
     startTime = time.time()
-    sys.argv.pop(0)             # do away with the command itself
 
-    # defaults
-    databasePathname = None
-    cleanDatabase = False
-    staggerPaths = False
-    again = True
-    while again:
-        try:
-            nextArg = sys.argv[0]     # peek ahead
-        except IndexError:
-            break                   # no more args
-        again = False
-        if nextArg == '-v' or nextArg == '--verbose':
-            sys.argv.pop(0)
-            again = True
-            verbose = True
-        if nextArg == '-db' or nextArg == '--database':
-            sys.argv.pop(0)
-            try:
-                databasePathname = sys.argv.pop(0)
-            except IndexError:
-                print '# argument needed for -db switch'
-                sys.exit(-1)
-            again = True
-        if nextArg == '-cdb' or nextArg == '--clean-database':
-            sys.argv.pop(0)
-            cleanDatabase = True
-            again = True
-        if nextArg == '-s' or nextArg == '--stagger-paths':
-            sys.argv.pop(0)
-            staggerPaths = True
-            again = True
+    desc="generate commands to eliminate redundant files and directories"
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument("-v", "--verbosity", action="count", default=0,
+                    help="increase output verbosity")
+    parser.add_argument("-d", "--database", 
+                    help="name of DBM file to use for hash cache")
+    parser.add_argument("-c", "--clean-database", action="store_true",
+                    help="clean hash cache instead of normal operation")
+    parser.add_argument("-s", "--stagger-paths", action="store_true",
+                    help="always prefer files in argument order")
+    args, paths = parser.parse_known_args()
+
+    verbosity = args.verbosity
+    databasePathname = args.database
+    cleanDatabase = args.clean_database
+    staggerPaths = args.stagger_paths
+
+    if staggerPaths and cleanDatabase:
+        print '# You probably did not mean to supply both -s and -c'
+        print '# Paths are not processed when cleaning the hash database'
+        sys.exit(-1)
 
     if databasePathname is not None:
         print '# set to use database: ' + databasePathname
@@ -836,10 +830,10 @@ if __name__ == '__main__':
             sys.exit(0)
     elif cleanDatabase:
         print '# database file must be specified for --clean-database',
-        print 'command (use -db)'
+        print 'command (use -d)'
         sys.exit(-1)
 
-    allFiles = EntryList(sys.argv, databasePathname, staggerPaths)
+    allFiles = EntryList(paths, databasePathname, staggerPaths)
     passCount = 0
     # fake value to get the loop started:
     deleted = 1
