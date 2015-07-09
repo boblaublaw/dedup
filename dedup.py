@@ -6,6 +6,7 @@ import sys
 import stat
 import time
 
+# what to export when other scripts import this module:
 __all__ = ["FileObj", "DirObj", "EntryObj", "clean_database" ]
 
 # TODO exclude and include filters
