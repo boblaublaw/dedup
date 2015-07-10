@@ -862,4 +862,4 @@ if __name__ == '__main__':
     print '# total running time: ' + str(endTime - startTime),
     print 'seconds.'
 
-# vim: set expandtab sw = 4 ts = 4:
+# vim: set expandtab sw=4 ts=4:
