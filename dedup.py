@@ -48,7 +48,7 @@ def resolve_candidates(candidates, currentDepth=None):
     losers = []
 
     for candidate in candidates:
-        if currentDepth is None and candidate.depth > currentDepth:
+        if currentDepth is not None and candidate.depth > currentDepth:
             # this candidate is too deep
             continue
         if candidate.depth not in depthMap:
@@ -63,7 +63,7 @@ def resolve_candidates(candidates, currentDepth=None):
 
     k = depthMap.keys()
     if len(k) == 0:
-        # nothing to resolve at this depth
+        # nothing to resolve (at this depth)
         return None, None
 
     k.sort()
@@ -126,17 +126,6 @@ class EntryList:
         stagger = 0;
 
         if databasePathname is not None:
-            try:
-                import gdbm
-                dbm = 'gdbm'
-            except ImportError:
-                dbm = 'anydbm'
-                print '# no gdbm implementation found, trying anydbm'
-                try:
-                    import anydbm
-                except ImportError:
-                    print '# no dbm implementation found!'
-                    sys.exit(-1)
             try:
                 self.modTime = os.stat(databasePathname).st_mtime
             except OSError:
@@ -378,25 +367,29 @@ class HashMap:
             print '# checking candidates from depth',
             print str(self.minDepth) + ' through ' + str(self.maxDepth)
         for currentDepth in xrange(self.minDepth-1,self.maxDepth+1):
+            # print '# checking depth ' + str(currentDepth)
             for hashval, list in self.contentHash.iteritems():
                 example = list[0]
                 if isinstance(example, DirObj):
                     win, losers = resolve_candidates(list, currentDepth)
-                    if losers is not None:
-                        for loser in losers:
-                            if not loser.deleted:
-                                if verbosity > 0:
-                                    print '# dir "' + loser.pathname,
-                                    print '" covered by "',
-                                    print win.pathname + '"'
-                                self.delete(loser)
-                                loser.winner = win
+                    if losers is None:
+                        continue
+                    for loser in losers:
+                        if not loser.deleted:
+                            if verbosity > 0:
+                                print '# dir "' + loser.pathname,
+                                print '" covered by "',
+                                print win.pathname + '"'
+                            self.delete(loser)
+                            loser.winner = win
                         self.prune()
 
         for hashval, list in self.contentHash.iteritems():
             example = list[0]
             if isinstance(example, FileObj):
                 win, losers = resolve_candidates(list)
+                if losers is None:
+                    continue
                 for loser in losers:
                     if not loser.deleted:
                         if verbosity > 0:
@@ -670,9 +663,10 @@ class FileObj():
                 pass
             else:
                 # db is newer than file
-                if verbosity > 0:
-					print '# ' + self.pathname + ' already in db'
                 self.hexdigest = db[self.pathname]
+                if verbosity > 0:
+                    print '# ' + self.pathname + ' already in db',
+                    print 'with hash ' + self.hexdigest
                 return
 
         # open and read the file
@@ -686,7 +680,8 @@ class FileObj():
         self.hexdigest = sha1.hexdigest()
 
         if verbosity > 0:
-			print '# computed new hash for ' + self.pathname
+            print '# computed new hash ' + self.hexdigest,
+            print 'for ' + self.pathname
 
         if db is not None:
             # add/update the cached hash value for this entry:
@@ -762,7 +757,8 @@ def clean_database(databasePathname):
     """function to remove dead nodes from the hash db"""
 
     if dbm != 'gdbm':
-        print '# non-gdbm databases dont support the reorganize method!'
+        print '# non-gdbm databases (' + dbm + ') dont support the',
+        print 'reorganize method!'
         sys.exit(-1)
 
     print '# loading database ' + databasePathname
@@ -824,7 +820,19 @@ if __name__ == '__main__':
         sys.exit(-1)
 
     if databasePathname is not None:
-        print '# set to use database: ' + databasePathname
+        try:
+            import gdbm
+            dbm = 'gdbm'
+        except ImportError:
+            dbm = 'anydbm'
+            print '# no gdbm implementation found, trying anydbm'
+            try:
+                import anydbm
+            except ImportError:
+                print '# no dbm implementation found!'
+                sys.exit(-1)
+        print '# set to use database ' + databasePathname,
+        print 'of type: ' + dbm
         if cleanDatabase:
             clean_database(databasePathname)
             sys.exit(0)
