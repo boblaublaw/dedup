@@ -869,7 +869,7 @@ if __name__ == '__main__':
         print 'seconds.'
 
     if cleanDatabase:
-        startTime = time.time
+        startTime = time.time()
         print '# Starting database clean...'
         clean_database(databasePathname)
         endTime = time.time()
