@@ -782,11 +782,14 @@ def clean_database(databasePathname):
             os.stat(currKey)
         except OSError:
             del db[currKey]
-            sys.stdout.write('*')
+            if verbosity > 0:
+                sys.stdout.write('*')
+                sys.stdout.flush()
             count = count+1
         else:
-            sys.stdout.write('.')
-        sys.stdout.flush()
+            if verbosity > 0:
+                sys.stdout.write('.')
+                sys.stdout.flush()
     print "\n# reorganizing " + databasePathname
     db.reorganize()
     db.sync()
@@ -796,7 +799,6 @@ def clean_database(databasePathname):
 
 if __name__ == '__main__':
     startTime = time.time()
-
     desc="generate commands to eliminate redundant files and directories"
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument("-v", "--verbosity", action="count", default=0,
@@ -814,11 +816,6 @@ if __name__ == '__main__':
     cleanDatabase = args.clean_database
     staggerPaths = args.stagger_paths
 
-    if staggerPaths and cleanDatabase:
-        print '# You probably did not mean to supply both -s and -c'
-        print '# Paths are not processed when cleaning the hash database'
-        sys.exit(-1)
-
     if databasePathname is not None:
         try:
             import gdbm
@@ -833,41 +830,51 @@ if __name__ == '__main__':
                 sys.exit(-1)
         print '# set to use database ' + databasePathname,
         print 'of type: ' + dbm
-        if cleanDatabase:
-            clean_database(databasePathname)
-            sys.exit(0)
     elif cleanDatabase:
         print '# database file must be specified for --clean-database',
         print 'command (use -d)'
         sys.exit(-1)
 
-    allFiles = EntryList(paths, databasePathname, staggerPaths)
-    passCount = 0
-    # fake value to get the loop started:
-    deleted = 1
-    # while things are still being removed, keep working:
-    while deleted > 0:
+    if len(paths) == 0 and staggerPaths:
+            print '# -s/--stagger-paths specified, but no paths provided!'
+            sys.exit(-1)
+    elif len(paths) > 0:
+        allFiles = EntryList(paths, databasePathname, staggerPaths)
+        passCount = 0
+        # fake value to get the loop started:
+        deleted = 1
+        # while things are still being removed, keep working:
+        while deleted > 0:
 
-        h = HashMap(allFiles)
-        deletedDirectories = allFiles.prune_empty()
+            h = HashMap(allFiles)
+            deletedDirectories = allFiles.prune_empty()
 
-        h = HashMap(allFiles)
-        deletedHashMatches = h.resolve()
+            h = HashMap(allFiles)
+            deletedHashMatches = h.resolve()
 
-        deleted = deletedDirectories + deletedHashMatches
-        passCount = passCount + 1
-        if deleted > 0:
-            print '# ' + str(deleted) + ' entries deleted on pass',
-            print str(passCount)
+            deleted = deletedDirectories + deletedHashMatches
+            passCount = passCount + 1
+            if deleted > 0:
+                print '# ' + str(deleted) + ' entries deleted on pass',
+                print str(passCount)
 
-    allFiles.generate_commands()
+        allFiles.generate_commands()
 
-    #for e in allFiles.walk():
-    #    e.display(False,False)
-    endTime = time.time()
-    print '# total bytes marked for deletion (not including',
-    print 'directory files): ' + str(allFiles.count_deleted_bytes())
-    print '# total running time: ' + str(endTime - startTime),
-    print 'seconds.'
+        #for e in allFiles.walk():
+        #    e.display(False,False)
+        endTime = time.time()
+        print '# total bytes marked for deletion (not including',
+        print 'directory files): ' + str(allFiles.count_deleted_bytes())
+        print '# total dedup running time: ' + str(endTime - startTime),
+        print 'seconds.'
+
+    if cleanDatabase:
+        startTime = time.time
+        print '# Starting database clean...'
+        clean_database(databasePathname)
+        endTime = time.time()
+        print '# Database clean complete after ' + str(endTime - startTime),
+        print 'seconds.'
+        sys.exit(0)
 
 # vim: set expandtab sw=4 ts=4:
