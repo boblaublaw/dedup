@@ -790,7 +790,7 @@ class HashDbObj():
     def clean(self):
         """function to remove dead nodes from the hash db"""
         global verbosity
-        if self.dbtype != 'gdbm':
+        if self.dbType != 'gdbm':
             print '# non-gdbm databases (' + self.dbType + ') dont support the',
             print 'reorganize method!'
             sys.exit(-1)
