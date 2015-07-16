@@ -57,8 +57,8 @@ def resolve_candidates(candidates, currentDepth=None):
         else:
             # found another candidate at the same depth
             incumbent = depthMap[candidate.depth]
-            # use pathname length as a tie-breaker
-            if len(incumbent.pathname) > len(candidate.pathname):
+            # use abspathname length as a tie-breaker
+            if len(incumbent.abspathname) > len(candidate.abspathname):
                 depthMap[candidate.depth] = candidate
 
     k = depthMap.keys()
@@ -173,9 +173,9 @@ class EntryList:
                     dirEntry = topDirEntry.place_dir(dirName,
                                                         weightAdjust)
                     for fname in fileList:
-                        if issocket(dirEntry.pathname + '/' + fname):
+                        if issocket(dirEntry.abspathname + '/' + fname):
                             print '# Skipping a socket',
-                            print dirEntry.pathname + '/' + fname
+                            print dirEntry.abspathname + '/' + fname
                         else:
                             newFile = FileObj(fname,
                                             parent = dirEntry,
@@ -281,7 +281,6 @@ class HashMap:
                 self.add_entry(e)
             else:
                 for dirEntry in e.dirwalk():
-                    #print '\n# adding dir ' + dirEntry.pathname
                     if not dirEntry.deleted:
                         for name, fileEntry in dirEntry.files.iteritems():
                             if not fileEntry.deleted:
@@ -377,9 +376,9 @@ class HashMap:
                     for loser in losers:
                         if not loser.deleted:
                             if verbosity > 0:
-                                print '# dir "' + loser.pathname,
+                                print '# dir "' + loser.abspathname,
                                 print '" covered by "',
-                                print win.pathname + '"'
+                                print win.abspathname + '"'
                             self.delete(loser)
                             loser.winner = win
                         self.prune()
@@ -393,8 +392,8 @@ class HashMap:
                 for loser in losers:
                     if not loser.deleted:
                         if verbosity > 0:
-                            print '# file "' + loser.pathname,
-                            print '" covered by "' + win.pathname + '"'
+                            print '# file "' + loser.abspathname,
+                            print '" covered by "' + win.abspathname + '"'
                         self.delete(loser)
                         loser.winner = win
 
@@ -415,6 +414,7 @@ class DirObj():
         self.parent = parent
         ancestry = self.get_lineage()
         self.pathname='/'.join(ancestry)
+        self.abspathname=os.path.abspath(self.pathname)
         self.depth = len(ancestry) + self.weightAdjust
         self.ignore = self.name in DELETE_LIST
 
@@ -459,7 +459,7 @@ class DirObj():
                 entry.display(contents, recurse);
         print '# Directory\t' + str(self.deleted) + '\t',
         print str(self.ignore) + '\t' + str(self.depth) + '\t',
-        print self.hexdigest + ' ' + self.pathname
+        print self.hexdigest + ' ' + self.abspathname
 
     # DirObj.place_dir
     def place_dir(self, inputDirName, weightAdjust):
@@ -527,15 +527,15 @@ class DirObj():
         """
         if self.deleted:
             if self.winner is not None:
-                if self.winner.pathname in selectDirMap:
+                if self.winner.abspathname in selectDirMap:
                     # use existing loser list:
-                    loserList = selectDirMap[self.winner.pathname]
-                    loserList.append(self.pathname)
+                    loserList = selectDirMap[self.winner.abspathname]
+                    loserList.append(self.abspathname)
                 else:
                     # start a new loser list:
-                    selectDirMap[self.winner.pathname] = [self.pathname]
+                    selectDirMap[self.winner.abspathname] = [self.abspathname]
             else:
-                emptyMap[self.pathname]=True
+                emptyMap[self.abspathname]=True
         else:
             for fileName, fileEntry in self.files.iteritems():
                 fileEntry.generate_commands(selectDirMap,
@@ -646,7 +646,9 @@ class FileObj():
             self.pathname = self.name
             self.depth = self.weightAdjust
 
-        statResult = os.stat(self.pathname)
+        self.abspathname=os.path.abspath(self.pathname);
+
+        statResult = os.stat(self.abspathname)
         self.modTime = statResult.st_mtime
         self.createTime = statResult.st_ctime
         self.bytes = statResult.st_size
@@ -656,22 +658,22 @@ class FileObj():
             self.hexdigest='da39a3ee5e6b4b0d3255bfef95601890afd80709'
             return
 
-        if db is not None and self.pathname in db:
-            # we've a cached hash value for this pathname
+        if db is not None and self.abspathname in db:
+            # we've a cached hash value for this abspathname
             if self.modTime > dbTime:
                 # file is newer than db
                 pass
             else:
                 # db is newer than file
-                self.hexdigest = db[self.pathname]
+                self.hexdigest = db[self.abspathname]
                 if verbosity > 0:
-                    print '# ' + self.pathname + ' already in db',
+                    print '# ' + self.abspathname + ' already in db',
                     print 'with hash ' + self.hexdigest
                 return
 
         # open and read the file
         sha1 = hashlib.sha1()
-        with open(self.pathname, 'rb') as f:
+        with open(self.abspathname, 'rb') as f:
             while True:
                 data = f.read(BUF_SIZE)
                 if not data:
@@ -681,11 +683,11 @@ class FileObj():
 
         if verbosity > 0:
             print '# computed new hash ' + self.hexdigest,
-            print 'for ' + self.pathname
+            print 'for ' + self.abspathname
 
         if db is not None:
             # add/update the cached hash value for this entry:
-            db[self.pathname]=self.hexdigest
+            db[self.abspathname]=self.hexdigest
 
     # FileObj.max_depth
     def max_depth(self):
@@ -711,15 +713,15 @@ class FileObj():
                     print '# BIRTHDAY LOTTERY CRISIS!'
                     print '# matched hashes and mismatched sizes!'
                     sys.exit(-1)
-                if self.winner.pathname in selectFileMap:
+                if self.winner.abspathname in selectFileMap:
                     # use existing loserList
-                    loserList = selectFileMap[self.winner.pathname]
-                    loserList.append(self.pathname)
+                    loserList = selectFileMap[self.winner.abspathname]
+                    loserList.append(self.abspathname)
                 else:
                     # create a new loserList
-                    selectFileMap[self.winner.pathname]=[self.pathname]
+                    selectFileMap[self.winner.abspathname]=[self.abspathname]
             else:
-                emptyMap[self.pathname] = True
+                emptyMap[self.abspathname] = True
 
     # FileObj.prune_empty
     def prune_empty(self):
@@ -776,7 +778,8 @@ def clean_database(databasePathname):
     allKeys.sort()
     print '# finished sorting keys from ' + databasePathname
     print '# deleting dead nodes'
-    count = 0
+    misscount = 0
+    hitcount = 0
     for currKey in allKeys:
         try:
             os.stat(currKey)
@@ -785,8 +788,9 @@ def clean_database(databasePathname):
             if verbosity > 0:
                 sys.stdout.write('*')
                 sys.stdout.flush()
-            count = count+1
+            misscount = misscount+1
         else:
+            hitcount = hitcount + 1
             if verbosity > 0:
                 sys.stdout.write('.')
                 sys.stdout.flush()
@@ -795,7 +799,8 @@ def clean_database(databasePathname):
     db.sync()
     db.close()
     print '# done cleaning ' + databasePathname + ', removed',
-    print str(count) + ' dead nodes!'
+    print str(misscount) + ' dead nodes and kept ' + str(hitcount),
+    print 'nodes!'
 
 if __name__ == '__main__':
     startTime = time.time()
