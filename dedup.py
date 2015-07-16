@@ -59,18 +59,25 @@ def resolve_candidates(candidates, currentDepth=None):
     """Helper function which examines a list of candidate objects with
     identical contents (as determined elsewhere) to determine which of
     the candidates is the "keeper" (or winner).  The other candidates
-    are designated losers.  The winner is selected by incrementally
-    increasing the directory depth (from 0) until one of the
-    candidates is encountered.
+    are designated losers.  The winner is selected by comparing the
+    depths of the candidates.  If chooseDeeper is true, the deepest
+    candidate is chosen, else the shallowest is chosen.  In the case
+    of a tie, the length of the full path is compared.
     """
     depthMap = {}
     losers = []
     global chooseDeeper
 
     for candidate in candidates:
-        if currentDepth is not None and candidate.depth > currentDepth:
-            # this candidate is too deep
-            continue
+        if currentDepth is not None:
+                if chooseDeeper:
+                    if candidate.depth < currentDepth:
+                        #print '# this candidate is too shallow'
+                        continue
+                else:
+                    if candidate.depth > currentDepth:
+                        #print '# this candidate is too deep'
+                        continue
         if candidate.depth not in depthMap:
             # encountered a new candidate, lets store it
             depthMap[candidate.depth] = candidate
@@ -91,9 +98,14 @@ def resolve_candidates(candidates, currentDepth=None):
         return None, None
 
     k.sort()
-    md = k.pop(0)
-    # we choose the candidate closest to the root
-    # deeper candidates are the losers
+    if chooseDeeper:
+        # we choose the candidate furthest from the root
+        # shallower candidates are the losers
+        md = k.pop()
+    else:
+        # we choose the candidate closest to the root
+        # deeper candidates are the losers
+        md = k.pop(0)
     winner = depthMap[md]
 
     if isinstance(winner, DirObj) and winner.is_empty():
@@ -362,7 +374,11 @@ class HashMap:
         if verbosity > 0:
             print '# checking candidates from depth',
             print str(self.minDepth) + ' through ' + str(self.maxDepth)
-        for currentDepth in xrange(self.minDepth-1,self.maxDepth+1):
+        depths=range(self.minDepth-1,self.maxDepth+1)
+        global chooseDeeper
+        if chooseDeeper:
+            depths.reverse()
+        for currentDepth in depths:
             # print '# checking depth ' + str(currentDepth)
             for hashval, list in self.contentHash.iteritems():
                 example = list[0]
@@ -834,7 +850,8 @@ if __name__ == '__main__':
     verbosity = args.verbosity
     chooseDeeper = args.choose_longer
 
-    db=HashDbObj(args.database)
+    if args.database is not None:
+        db=HashDbObj(args.database)
 
     if args.clean_database and db is None:
         print '# database file must be specified for --clean-database',
