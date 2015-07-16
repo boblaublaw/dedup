@@ -8,7 +8,7 @@ import time
 import argparse
 
 # what to export when other scripts import this module:
-__all__ = ["FileObj", "DirObj", "EntryObj", "clean_database" ]
+__all__ = ["FileObj", "DirObj", "EntryObj", "HashDbObj" ]
 
 # TODO exclude and include filters
 
@@ -29,12 +29,31 @@ DO_NOT_DELETE_LIST = []
 # size of hashing buffer:
 BUF_SIZE = 65536
 
-# defaults
+# default globals
+chooseDeeper=False
 verbosity = 0
-databasePathname = None
-cleanDatabase = False
-staggerPaths = False
-dbm = None
+db = None
+
+def compute_hash(pathname):
+    # open and read the file
+    sha1 = hashlib.sha1()
+    with open(pathname, 'rb') as f:
+        while True:
+            data = f.read(BUF_SIZE)
+            if not data:
+                break
+            sha1.update(data)
+    digest = sha1.hexdigest()
+    if verbosity > 0:
+        print '# computed new hash ' + digest,
+        print 'for ' + pathname
+    return digest
+
+def get_hash(f):
+    global db
+    if db is not None:
+        return db.lookup_hash(f)
+    return(compute_hash(f.abspathname))
 
 def resolve_candidates(candidates, currentDepth=None):
     """Helper function which examines a list of candidate objects with
@@ -46,6 +65,7 @@ def resolve_candidates(candidates, currentDepth=None):
     """
     depthMap = {}
     losers = []
+    global chooseDeeper
 
     for candidate in candidates:
         if currentDepth is not None and candidate.depth > currentDepth:
@@ -58,8 +78,12 @@ def resolve_candidates(candidates, currentDepth=None):
             # found another candidate at the same depth
             incumbent = depthMap[candidate.depth]
             # use abspathname length as a tie-breaker
-            if len(incumbent.abspathname) > len(candidate.abspathname):
-                depthMap[candidate.depth] = candidate
+            if chooseDeeper:
+                if len(incumbent.abspathname) < len(candidate.abspathname):
+                    depthMap[candidate.depth] = candidate
+            else:
+                if len(incumbent.abspathname) > len(candidate.abspathname):
+                    depthMap[candidate.depth] = candidate
 
     k = depthMap.keys()
     if len(k) == 0:
@@ -119,29 +143,9 @@ def check_level(pathname):
 
 class EntryList:
     """A container for all source directories and files to examine"""
-    def __init__(self, arguments, databasePathname, staggerPaths):
+    def __init__(self, arguments, staggerPaths):
         self.contents = {}
-        self.modTime = None
-        self.db = None
         stagger = 0;
-
-        if databasePathname is not None:
-            try:
-                self.modTime = os.stat(databasePathname).st_mtime
-            except OSError:
-                print "# db " + databasePathname + " doesn't exist yet"
-                self.modTime = None
-
-            if dbm == 'gdbm':
-                self.db = gdbm.open(databasePathname, 'c')
-            elif dbm == 'anydbm':
-                self.db = anydbm.open(databasePathname, 'c')
-
-            if self.modTime is None:
-                self.modTime = time.time()
-
-            print '# db last modification time is',
-            print str(time.time() - self.modTime) + ' seconds ago'
 
         # walk arguments adding files and directories
         for entry in arguments:
@@ -154,10 +158,7 @@ class EntryList:
             if os.path.isfile(entry):
                 if staggerPaths:
                     weightAdjust = weightAdjust + stagger
-                newFile = FileObj(entry,
-                            dbTime = self.modTime,
-                            db = self.db,
-                            weightAdjust = weightAdjust)
+                newFile = FileObj(entry, weightAdjust = weightAdjust)
                 if staggerPaths:
                     stagger = stagger + newFile.depth
                 self.contents[entry] = newFile
@@ -179,8 +180,6 @@ class EntryList:
                         else:
                             newFile = FileObj(fname,
                                             parent = dirEntry,
-                                            dbTime = self.modTime,
-                                            db = self.db,
                                             weightAdjust = weightAdjust)
                             dirEntry.files[fname]=newFile
                 if staggerPaths:
@@ -188,8 +187,6 @@ class EntryList:
             else:
                 print "I don't know what this is" + entry
                 sys.exit()
-        if self.db is not None:
-            self.db.close()
 
     # EntryList.count_deleted_bytes
     def count_deleted_bytes(self):
@@ -296,7 +293,6 @@ class HashMap:
         """Store a file or directory in the HashMap, indexed by it's
         hash.
         """
-
         if entry.hexdigest in self.contentHash:
             self.contentHash[entry.hexdigest].append(entry)
         else:
@@ -350,6 +346,7 @@ class HashMap:
         """Compares all entries and where hash collisions exists, pick a
         keeper.
         """
+        global verbosity
         prevCount = self.allFiles.count_deleted()
 
         # no need to resolve uniques, so remove them from the HashMap
@@ -629,8 +626,7 @@ class DirObj():
 
 class FileObj():
     """A file object which stores some metadata"""
-    def __init__(self, name, parent=None, dbTime=None,
-                    db = None, weightAdjust = 0):
+    def __init__(self, name, parent=None, weightAdjust = 0):
         self.name = name;
         self.winner = None
         self.parent = parent
@@ -652,42 +648,7 @@ class FileObj():
         self.modTime = statResult.st_mtime
         self.createTime = statResult.st_ctime
         self.bytes = statResult.st_size
-        if self.bytes == 0:
-            self.ignore = True
-            # the sha1 digest of 0 bytes is fixed:
-            self.hexdigest='da39a3ee5e6b4b0d3255bfef95601890afd80709'
-            return
-
-        if db is not None and self.abspathname in db:
-            # we've a cached hash value for this abspathname
-            if self.modTime > dbTime:
-                # file is newer than db
-                pass
-            else:
-                # db is newer than file
-                self.hexdigest = db[self.abspathname]
-                if verbosity > 0:
-                    print '# ' + self.abspathname + ' already in db',
-                    print 'with hash ' + self.hexdigest
-                return
-
-        # open and read the file
-        sha1 = hashlib.sha1()
-        with open(self.abspathname, 'rb') as f:
-            while True:
-                data = f.read(BUF_SIZE)
-                if not data:
-                    break
-                sha1.update(data)
-        self.hexdigest = sha1.hexdigest()
-
-        if verbosity > 0:
-            print '# computed new hash ' + self.hexdigest,
-            print 'for ' + self.abspathname
-
-        if db is not None:
-            # add/update the cached hash value for this entry:
-            db[self.abspathname]=self.hexdigest
+        self.hexdigest=get_hash(self)
 
     # FileObj.max_depth
     def max_depth(self):
@@ -755,52 +716,104 @@ class FileObj():
         else:
             return 0
 
-def clean_database(databasePathname):
-    """function to remove dead nodes from the hash db"""
 
-    if dbm != 'gdbm':
-        print '# non-gdbm databases (' + dbm + ') dont support the',
-        print 'reorganize method!'
-        sys.exit(-1)
-
-    print '# loading database ' + databasePathname
-    try:
-        db = gdbm.open(databasePathname, 'w')
-    except: # TODO name the exception here
-        print "# " + databasePathname + " could not be loaded"
-        sys.exit(-1)
-
-    # even though gdbm supports memory efficient iteration over
-    # all keys, I want to order my traversal across similar
-    # paths to leverage caching of directory files:
-    allKeys = db.keys()
-    print '# finished loaded keys from ' + databasePathname
-    allKeys.sort()
-    print '# finished sorting keys from ' + databasePathname
-    print '# deleting dead nodes'
-    misscount = 0
-    hitcount = 0
-    for currKey in allKeys:
+class HashDbObj():
+    def __init__(self, pathname):
+        self.pathname=pathname
         try:
-            os.stat(currKey)
+            self.modTime = os.stat(self.pathname).st_mtime
         except OSError:
-            del db[currKey]
-            if verbosity > 0:
-                sys.stdout.write('*')
-                sys.stdout.flush()
-            misscount = misscount+1
-        else:
-            hitcount = hitcount + 1
-            if verbosity > 0:
-                sys.stdout.write('.')
-                sys.stdout.flush()
-    print "\n# reorganizing " + databasePathname
-    db.reorganize()
-    db.sync()
-    db.close()
-    print '# done cleaning ' + databasePathname + ', removed',
-    print str(misscount) + ' dead nodes and kept ' + str(hitcount),
-    print 'nodes!'
+            print "# db " + self.pathname + " doesn't exist yet"
+            self.modTime = time.time()
+        print '# db last modification time is',
+        print str(time.time() - self.modTime) + ' seconds ago'
+
+        try:
+            import gdbm
+            self.dbType = 'gdbm'
+        except ImportError:
+            self.dbType='anydbm'
+            print '# no gdbm implementation found, trying anydbm'
+            try:
+                import anydbm
+            except ImportError:
+                print '# no dbm implementation found!'
+                sys.exit(-1)
+        print '# set to use database ' + self.pathname,
+        print 'of type: ' + self.dbType
+
+        print '# loading database ' + self.pathname
+        try:
+            if self.dbType == 'gdbm':
+                self.db = gdbm.open(self.pathname, 'c')
+            elif self.dbType == 'anydbm':
+                self.db = anydbm.open(self.pathname, 'c')
+        except: # TODO name the exception here
+            print "# " + self.pathname + " could not be loaded"
+            sys.exit(-1)
+
+    def lookup_hash(self, f):
+        """look up this path to see if it has already been computed"""
+        global verbosity
+        if f.abspathname in self.db:
+            # we've a cached hash value for this abspathname
+            if f.modTime > self.modTime:
+                # file is newer than db
+                pass
+            else:
+                # db is newer than file
+                digest = self.db[f.abspathname]
+                if verbosity > 0:
+                    print '# hash ' + digest + ' for ' + f.abspathname + ' already in db.'
+                return digest
+        digest=compute_hash(f.abspathname)
+        # add/update the cached hash value for this entry:
+        self.db[f.abspathname]=digest
+        return digest
+
+    def clean(self):
+        """function to remove dead nodes from the hash db"""
+        global verbosity
+        if self.dbtype != 'gdbm':
+            print '# non-gdbm databases (' + self.dbType + ') dont support the',
+            print 'reorganize method!'
+            sys.exit(-1)
+
+        startTime = time.time()
+        print '# Starting database clean...'
+        # even though gdbm supports memory efficient iteration over
+        # all keys, I want to order my traversal across similar
+        # paths to leverage caching of directory files:
+        allKeys = self.db.keys()
+        print '# finished loaded keys from ' + self.pathname
+        allKeys.sort()
+        print '# finished sorting keys from ' + self.pathname
+        print '# deleting dead nodes'
+        misscount = 0
+        hitcount = 0
+        for currKey in allKeys:
+            try:
+                os.stat(currKey)
+            except OSError:
+                del self.db[currKey]
+                if verbosity > 0:
+                    sys.stdout.write('*')
+                    sys.stdout.flush()
+                misscount = misscount+1
+            else:
+                hitcount = hitcount + 1
+                if verbosity > 0:
+                    sys.stdout.write('.')
+                    sys.stdout.flush()
+        print "\n# reorganizing " + self.pathname
+        self.db.reorganize()
+        self.db.sync()
+        print '# done cleaning ' + self.pathname + ', removed',
+        print str(misscount) + ' dead nodes and kept ' + str(hitcount),
+        print 'nodes!'
+        endTime = time.time()
+        print '# Database clean complete after ' + str(endTime - startTime),
+        print 'seconds.'
 
 if __name__ == '__main__':
     startTime = time.time()
@@ -814,37 +827,29 @@ if __name__ == '__main__':
                     help="clean hash cache instead of normal operation")
     parser.add_argument("-s", "--stagger-paths", action="store_true",
                     help="always prefer files in argument order")
+    parser.add_argument("-l", "--choose-longer", action="store_true",
+                    help="choose the longer path depth and pathnames")
     args, paths = parser.parse_known_args()
 
     verbosity = args.verbosity
-    databasePathname = args.database
-    cleanDatabase = args.clean_database
-    staggerPaths = args.stagger_paths
+    chooseDeeper = args.choose_longer
 
-    if databasePathname is not None:
-        try:
-            import gdbm
-            dbm = 'gdbm'
-        except ImportError:
-            dbm = 'anydbm'
-            print '# no gdbm implementation found, trying anydbm'
-            try:
-                import anydbm
-            except ImportError:
-                print '# no dbm implementation found!'
-                sys.exit(-1)
-        print '# set to use database ' + databasePathname,
-        print 'of type: ' + dbm
-    elif cleanDatabase:
+    db=HashDbObj(args.database)
+
+    if args.clean_database and db is None:
         print '# database file must be specified for --clean-database',
         print 'command (use -d)'
         sys.exit(-1)
 
-    if len(paths) == 0 and staggerPaths:
+    if len(paths) == 0 and args.stagger_paths:
             print '# -s/--stagger-paths specified, but no paths provided!'
             sys.exit(-1)
-    elif len(paths) > 0:
-        allFiles = EntryList(paths, databasePathname, staggerPaths)
+
+    if args.clean_database:
+        db.clean()
+
+    if len(paths) > 0:
+        allFiles = EntryList(paths, args.stagger_paths)
         passCount = 0
         # fake value to get the loop started:
         deleted = 1
@@ -872,14 +877,5 @@ if __name__ == '__main__':
         print 'directory files): ' + str(allFiles.count_deleted_bytes())
         print '# total dedup running time: ' + str(endTime - startTime),
         print 'seconds.'
-
-    if cleanDatabase:
-        startTime = time.time()
-        print '# Starting database clean...'
-        clean_database(databasePathname)
-        endTime = time.time()
-        print '# Database clean complete after ' + str(endTime - startTime),
-        print 'seconds.'
-        sys.exit(0)
 
 # vim: set expandtab sw=4 ts=4:
