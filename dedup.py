@@ -6,6 +6,7 @@ import sys
 import stat
 import time
 import argparse
+from operator import attrgetter
 from itertools import ifilter
 
 # what to export when other scripts import this module:
@@ -245,7 +246,7 @@ class HashMap:
             if self.maxDepth < maxd:
                 self.maxDepth = maxd
 
-    # Hashmap.add_entry
+    # HashMap.add_entry
     def add_entry(self, entry):
         """Store a file or directory in the HashMap, indexed by it's
         hash.
@@ -258,14 +259,14 @@ class HashMap:
         if entry.depth < self.minDepth:
             self.minDepth = entry.depth
 
-    # Hashmap.display
+    # HashMap.display
     def display(self):
         """Generate a human readable report."""
         for hashval, list in self.contentHash.iteritems():
             for entry in list:
                 entry.display(False, False)
 
-    # Hashmap.delete
+    # HashMap.delete
     def delete(self, entry):
         """Marks an entry as deleted then remove it from the HashMap"""
 
@@ -283,7 +284,7 @@ class HashMap:
         if len(newlist):
             self.contentHash[entry.hexdigest] = newlist
         else:
-            del self.contentHash[entry.hashval]
+            del self.contentHash[entry.hexdigest]
 
         # also remove all the deleted children from the hashmap
         self.prune()
@@ -291,12 +292,21 @@ class HashMap:
     # HashMap.prune
     def prune(self):
         """Removes deleted objects from the HashMap"""
+        deleteList = []
         for hashval, list in self.contentHash.iteritems():
             newlist=[]
             for entry in list:
-                if not entry.deleted:
+                if entry.deleted:
+                    entry.delete()
+                else:
                     newlist.append(entry)
-            self.contentHash[hashval]=newlist
+            if len(newlist) > 0:
+                self.contentHash[hashval]=newlist
+            else:
+                deleteList.append(hashval)
+
+        for entry in deleteList:
+            del self.contentHash[entry]
 
     # HashMap.resolve_candidates
     def resolve_candidates(self, candidates):
@@ -309,68 +319,36 @@ class HashMap:
         of a tie, the length of the full path is compared.
         """
         #newlist = sorted(candidates, key=lambda x: x.depth, chooseDeeper)
-        #candidates.sort(key=lambda x: x.count, chooseDeeper)
-        depthMap = {}
-        losers = []
-        global chooseDeeper
 
-        for candidate in candidates:
-            if candidate.depth not in depthMap:
-                # encountered a new candidate, lets store it
-                depthMap[candidate.depth] = candidate
-            else:
-                # found another candidate at the same depth
-                incumbent = depthMap[candidate.depth]
-                # use abspathname length as a tie-breaker
-                if chooseDeeper:
-                    if len(incumbent.abspathname) < len(candidate.abspathname):
-                        depthMap[candidate.depth] = candidate
-                else:
-                    if len(incumbent.abspathname) > len(candidate.abspathname):
-                        depthMap[candidate.depth] = candidate
-
-        k = depthMap.keys()
-        if len(k) == 0:
+        if len(candidates) == 0:
             # nothing to resolve (at this depth)
-            return None
+            return
 
-        k.sort()
-        if chooseDeeper:
-            # we choose the candidate furthest from the root
-            # shallower candidates are the losers
-            md = k.pop()
-        else:
-            # we choose the candidate closest to the root
-            # deeper candidates are the losers
-            md = k.pop(0)
-        winner = depthMap[md]
+        global chooseDeeper
+        candidates.sort(key=attrgetter('depth','abspathnamelen'), reverse=chooseDeeper)
+        winner = candidates.pop(0)
 
         if isinstance(winner, DirObj) and winner.is_empty():
             # we trim empty directories using DirObj.prune_empty()
             # because it produces less confusing output
-            return None
+            return
 
+        losers = []
         # once we have a winner, mark all the other candidates as losers
         for candidate in candidates:
             if candidate != winner:
                 losers.append(candidate)
+                if not candidate.deleted:
+                    candidate.delete()
+                    if verbosity > 0:
+                        if isinstance(candidate,DirObj):
+                            print '# dir  "' + candidate.abspathname,
+                        else:
+                            print '# file "' + candidate.abspathname,
+                        print '" covered by "' + winner.abspathname + '"'
+                    candidate.winner = winner
 
         winner.losers = losers
-
-        for loser in losers:
-            if not loser.deleted:
-                if verbosity > 0:
-                    if isinstance(loser.DirObj):
-                        print '# dir  "' + loser.abspathname,
-                    else:
-                        print '# file "' + loser.abspathname,
-                    print '" covered by "' + win.abspathname + '"'
-                loser.winner = winner
-            self.delete(loser)
-            if isinstance(loser, DirObj):
-                self.prune()
-
-        return winner
 
     # HashMap.resolve
     def resolve(self):
@@ -406,12 +384,14 @@ class HashMap:
                     maybes = [x for x in candidates if x.depth < depthFilter ]
                 else:
                     maybes = [x for x in candidates if x.depth > depthFilter ]
-                if len(maybes) == 0:
-                    continue
-                self.resolve_candidates(maybes)
+                if len(maybes) > 0:
+                    self.resolve_candidates(maybes)
+            self.prune()
 
         for hashval, candidates in ifilter(lambda x: peek_type(x,FileObj),self.contentHash.iteritems()):
             self.resolve_candidates(candidates)
+
+        self.prune()
 
         return self.allFiles.count_deleted() - prevCount
 
@@ -431,6 +411,7 @@ class DirObj():
         ancestry = self.get_lineage()
         self.pathname='/'.join(ancestry)
         self.abspathname=os.path.abspath(self.pathname)
+        self.abspathnamelen=len(self.abspathname)
         self.depth = len(ancestry) + self.weightAdjust
         self.ignore = self.name in DELETE_LIST
 
@@ -662,6 +643,7 @@ class FileObj():
             self.depth = self.weightAdjust
 
         self.abspathname=os.path.abspath(self.pathname);
+        self.abspathnamelen=len(self.abspathname)
 
         statResult = os.stat(self.abspathname)
         self.modTime = statResult.st_mtime
