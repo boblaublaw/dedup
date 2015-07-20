@@ -65,66 +65,6 @@ def get_hash(f):
         return db.lookup_hash(f)
     return(compute_hash(f.abspathname))
 
-def resolve_candidates(candidates):
-    """Helper function which examines a list of candidate objects with
-    identical contents (as determined elsewhere) to determine which of
-    the candidates is the "keeper" (or winner).  The other candidates
-    are designated losers.  The winner is selected by comparing the
-    depths of the candidates.  If chooseDeeper is true, the deepest
-    candidate is chosen, else the shallowest is chosen.  In the case
-    of a tie, the length of the full path is compared.
-    """
-    #newlist = sorted(candidates, key=lambda x: x.depth, chooseDeeper)
-    #candidates.sort(key=lambda x: x.count, chooseDeeper)
-    depthMap = {}
-    losers = []
-    global chooseDeeper
-
-    for candidate in candidates:
-        if candidate.depth not in depthMap:
-            # encountered a new candidate, lets store it
-            depthMap[candidate.depth] = candidate
-        else:
-            # found another candidate at the same depth
-            incumbent = depthMap[candidate.depth]
-            # use abspathname length as a tie-breaker
-            if chooseDeeper:
-                if len(incumbent.abspathname) < len(candidate.abspathname):
-                    depthMap[candidate.depth] = candidate
-            else:
-                if len(incumbent.abspathname) > len(candidate.abspathname):
-                    depthMap[candidate.depth] = candidate
-
-
-    k = depthMap.keys()
-    if len(k) == 0:
-        # nothing to resolve (at this depth)
-        return None
-
-    k.sort()
-    if chooseDeeper:
-        # we choose the candidate furthest from the root
-        # shallower candidates are the losers
-        md = k.pop()
-    else:
-        # we choose the candidate closest to the root
-        # deeper candidates are the losers
-        md = k.pop(0)
-    winner = depthMap[md]
-
-    if isinstance(winner, DirObj) and winner.is_empty():
-        # we trim empty directories using DirObj.prune_empty()
-        # because it produces less confusing output
-        return None
-
-    # once we have a winner, mark all the other candidates as losers
-    for candidate in candidates:
-        if candidate != winner:
-            losers.append(candidate)
-
-    winner.losers = losers
-    return winner
-
 def issocket(path):
     """For some reason python provides isfile and isdirectory but not
     issocket().
@@ -358,6 +298,80 @@ class HashMap:
                     newlist.append(entry)
             self.contentHash[hashval]=newlist
 
+    # HashMap.resolve_candidates
+    def resolve_candidates(self, candidates):
+        """Helper function which examines a list of candidate objects with
+        identical contents (as determined elsewhere) to determine which of
+        the candidates is the "keeper" (or winner).  The other candidates
+        are designated losers.  The winner is selected by comparing the
+        depths of the candidates.  If chooseDeeper is true, the deepest
+        candidate is chosen, else the shallowest is chosen.  In the case
+        of a tie, the length of the full path is compared.
+        """
+        #newlist = sorted(candidates, key=lambda x: x.depth, chooseDeeper)
+        #candidates.sort(key=lambda x: x.count, chooseDeeper)
+        depthMap = {}
+        losers = []
+        global chooseDeeper
+
+        for candidate in candidates:
+            if candidate.depth not in depthMap:
+                # encountered a new candidate, lets store it
+                depthMap[candidate.depth] = candidate
+            else:
+                # found another candidate at the same depth
+                incumbent = depthMap[candidate.depth]
+                # use abspathname length as a tie-breaker
+                if chooseDeeper:
+                    if len(incumbent.abspathname) < len(candidate.abspathname):
+                        depthMap[candidate.depth] = candidate
+                else:
+                    if len(incumbent.abspathname) > len(candidate.abspathname):
+                        depthMap[candidate.depth] = candidate
+
+        k = depthMap.keys()
+        if len(k) == 0:
+            # nothing to resolve (at this depth)
+            return None
+
+        k.sort()
+        if chooseDeeper:
+            # we choose the candidate furthest from the root
+            # shallower candidates are the losers
+            md = k.pop()
+        else:
+            # we choose the candidate closest to the root
+            # deeper candidates are the losers
+            md = k.pop(0)
+        winner = depthMap[md]
+
+        if isinstance(winner, DirObj) and winner.is_empty():
+            # we trim empty directories using DirObj.prune_empty()
+            # because it produces less confusing output
+            return None
+
+        # once we have a winner, mark all the other candidates as losers
+        for candidate in candidates:
+            if candidate != winner:
+                losers.append(candidate)
+
+        winner.losers = losers
+
+        for loser in losers:
+            if not loser.deleted:
+                if verbosity > 0:
+                    if isinstance(loser.DirObj):
+                        print '# dir  "' + loser.abspathname,
+                    else:
+                        print '# file "' + loser.abspathname,
+                    print '" covered by "' + win.abspathname + '"'
+                loser.winner = winner
+            self.delete(loser)
+            if isinstance(loser, DirObj):
+                self.prune()
+
+        return winner
+
     # HashMap.resolve
     def resolve(self):
         """Compares all entries and where hash collisions exists, pick a
@@ -392,30 +406,12 @@ class HashMap:
                     maybes = [x for x in candidates if x.depth < depthFilter ]
                 else:
                     maybes = [x for x in candidates if x.depth > depthFilter ]
-                win = resolve_candidates(maybes)
-                if win is None or win.losers is None:
+                if len(maybes) == 0:
                     continue
-                for loser in win.losers:
-                    if not loser.deleted:
-                        if verbosity > 0:
-                            print '# dir "' + loser.abspathname,
-                            print '" covered by "',
-                            print win.abspathname + '"'
-                        self.delete(loser)
-                        loser.winner = win
-                    self.prune()
+                self.resolve_candidates(maybes)
 
         for hashval, candidates in ifilter(lambda x: peek_type(x,FileObj),self.contentHash.iteritems()):
-            win = resolve_candidates(candidates)
-            if win is None or win.losers is None:
-                continue
-            for loser in win.losers:
-                if not loser.deleted:
-                    if verbosity > 0:
-                        print '# file "' + loser.abspathname,
-                        print '" covered by "' + win.abspathname + '"'
-                    self.delete(loser)
-                    loser.winner = win
+            self.resolve_candidates(candidates)
 
         return self.allFiles.count_deleted() - prevCount
 
