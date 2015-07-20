@@ -6,6 +6,7 @@ import sys
 import stat
 import time
 import argparse
+from itertools import ifilter
 
 # what to export when other scripts import this module:
 __all__ = ["FileObj", "DirObj", "EntryObj", "HashDbObj" ]
@@ -34,7 +35,12 @@ chooseDeeper=False
 verbosity = 0
 db = None
 
+def peek_type(tuple, type):
+    list=tuple[1]
+    return isinstance(list[0], type)
+
 def compute_hash(pathname):
+    """reads a file and computes a SHA1 hash"""
     # open and read the file
     sha1 = hashlib.sha1()
     with open(pathname, 'rb') as f:
@@ -50,6 +56,7 @@ def compute_hash(pathname):
     return digest
 
 def get_hash(f):
+    """returns a hash for a filename"""
     global db
     if db is not None:
         return db.lookup_hash(f)
@@ -64,6 +71,9 @@ def resolve_candidates(candidates, currentDepth=None):
     candidate is chosen, else the shallowest is chosen.  In the case
     of a tie, the length of the full path is compared.
     """
+    #maybes = [x for x in candidates if x.depth < currentDepth ]
+    #newlist = sorted(candidates, key=lambda x: x.depth, chooseDeeper)
+    #candidates.sort(key=lambda x: x.count, chooseDeeper)
     depthMap = {}
     losers = []
     global chooseDeeper
@@ -92,10 +102,11 @@ def resolve_candidates(candidates, currentDepth=None):
                 if len(incumbent.abspathname) > len(candidate.abspathname):
                     depthMap[candidate.depth] = candidate
 
+
     k = depthMap.keys()
     if len(k) == 0:
         # nothing to resolve (at this depth)
-        return None, None
+        return None
 
     k.sort()
     if chooseDeeper:
@@ -111,14 +122,15 @@ def resolve_candidates(candidates, currentDepth=None):
     if isinstance(winner, DirObj) and winner.is_empty():
         # we trim empty directories using DirObj.prune_empty()
         # because it produces less confusing output
-        return None, None
+        return None
 
     # once we have a winner, mark all the other candidates as losers
     for candidate in candidates:
         if candidate != winner:
             losers.append(candidate)
 
-    return winner, losers
+    winner.losers = losers
+    return winner
 
 def issocket(path):
     """For some reason python provides isfile and isdirectory but not
@@ -379,36 +391,33 @@ class HashMap:
         if chooseDeeper:
             depths.reverse()
         for currentDepth in depths:
-            # print '# checking depth ' + str(currentDepth)
-            for hashval, list in self.contentHash.iteritems():
-                example = list[0]
-                if isinstance(example, DirObj):
-                    win, losers = resolve_candidates(list, currentDepth)
-                    if losers is None:
-                        continue
-                    for loser in losers:
-                        if not loser.deleted:
-                            if verbosity > 0:
-                                print '# dir "' + loser.abspathname,
-                                print '" covered by "',
-                                print win.abspathname + '"'
-                            self.delete(loser)
-                            loser.winner = win
-                        self.prune()
+            #print '# checking depth ' + str(currentDepth)
 
-        for hashval, list in self.contentHash.iteritems():
-            example = list[0]
-            if isinstance(example, FileObj):
-                win, losers = resolve_candidates(list)
-                if losers is None:
+            for hashval, list in ifilter(lambda x: peek_type(x,DirObj),self.contentHash.iteritems()):
+                win = resolve_candidates(list, currentDepth)
+                if win is None or win.losers is None:
                     continue
-                for loser in losers:
+                for loser in win.losers:
                     if not loser.deleted:
                         if verbosity > 0:
-                            print '# file "' + loser.abspathname,
-                            print '" covered by "' + win.abspathname + '"'
+                            print '# dir "' + loser.abspathname,
+                            print '" covered by "',
+                            print win.abspathname + '"'
                         self.delete(loser)
                         loser.winner = win
+                    self.prune()
+
+        for hashval, list in ifilter(lambda x: peek_type(x,FileObj),self.contentHash.iteritems()):
+            win = resolve_candidates(list)
+            if win is None or win.losers is None:
+                continue
+            for loser in win.losers:
+                if not loser.deleted:
+                    if verbosity > 0:
+                        print '# file "' + loser.abspathname,
+                        print '" covered by "' + win.abspathname + '"'
+                    self.delete(loser)
+                    loser.winner = win
 
         return self.allFiles.count_deleted() - prevCount
 
