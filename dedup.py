@@ -36,6 +36,9 @@ verbosity = 0
 db = None
 
 def peek_type(tuple, type):
+    """for checking the type of a list member which is also packed in a tuple.
+    This function assumes all list members are the same type.
+    """
     list=tuple[1]
     return isinstance(list[0], type)
 
@@ -62,7 +65,7 @@ def get_hash(f):
         return db.lookup_hash(f)
     return(compute_hash(f.abspathname))
 
-def resolve_candidates(candidates, currentDepth=None):
+def resolve_candidates(candidates):
     """Helper function which examines a list of candidate objects with
     identical contents (as determined elsewhere) to determine which of
     the candidates is the "keeper" (or winner).  The other candidates
@@ -71,7 +74,6 @@ def resolve_candidates(candidates, currentDepth=None):
     candidate is chosen, else the shallowest is chosen.  In the case
     of a tie, the length of the full path is compared.
     """
-    #maybes = [x for x in candidates if x.depth < currentDepth ]
     #newlist = sorted(candidates, key=lambda x: x.depth, chooseDeeper)
     #candidates.sort(key=lambda x: x.count, chooseDeeper)
     depthMap = {}
@@ -79,15 +81,6 @@ def resolve_candidates(candidates, currentDepth=None):
     global chooseDeeper
 
     for candidate in candidates:
-        if currentDepth is not None:
-                if chooseDeeper:
-                    if candidate.depth < currentDepth:
-                        #print '# this candidate is too shallow'
-                        continue
-                else:
-                    if candidate.depth > currentDepth:
-                        #print '# this candidate is too deep'
-                        continue
         if candidate.depth not in depthMap:
             # encountered a new candidate, lets store it
             depthMap[candidate.depth] = candidate
@@ -374,27 +367,32 @@ class HashMap:
         prevCount = self.allFiles.count_deleted()
 
         # no need to resolve uniques, so remove them from the HashMap
-        singles=[]
+        uniques=[]
+        # you cannot modify a collection while iterating over it...
         for hashval, list in self.contentHash.iteritems():
             if len(list) == 1:
-                singles.append(hashval)
-        for e in singles:
-            del self.contentHash[e]
+                uniques.append(hashval)
+        # ... so delete entries in a second pass.
+        for entry in uniques:
+            del self.contentHash[entry]
 
-        # delete the directories first, in order of
-        # increasing depth
-        if verbosity > 0:
-            print '# checking candidates from depth',
-            print str(self.minDepth) + ' through ' + str(self.maxDepth)
+        # delete the directories first, in order of (de/in)creasing depth
         depths=range(self.minDepth-1,self.maxDepth+1)
         global chooseDeeper
         if chooseDeeper:
             depths.reverse()
-        for currentDepth in depths:
-            #print '# checking depth ' + str(currentDepth)
+        if verbosity > 0:
+            print '# checking candidates in depth order:',
+            print str(depths)
 
-            for hashval, list in ifilter(lambda x: peek_type(x,DirObj),self.contentHash.iteritems()):
-                win = resolve_candidates(list, currentDepth)
+        for depthFilter in depths:
+            #print '# checking depth ' + str(depthFilter)
+            for hashval, candidates in ifilter(lambda x: peek_type(x,DirObj),self.contentHash.iteritems()):
+                if chooseDeeper:
+                    maybes = [x for x in candidates if x.depth < depthFilter ]
+                else:
+                    maybes = [x for x in candidates if x.depth > depthFilter ]
+                win = resolve_candidates(maybes)
                 if win is None or win.losers is None:
                     continue
                 for loser in win.losers:
@@ -407,8 +405,8 @@ class HashMap:
                         loser.winner = win
                     self.prune()
 
-        for hashval, list in ifilter(lambda x: peek_type(x,FileObj),self.contentHash.iteritems()):
-            win = resolve_candidates(list)
+        for hashval, candidates in ifilter(lambda x: peek_type(x,FileObj),self.contentHash.iteritems()):
+            win = resolve_candidates(candidates)
             if win is None or win.losers is None:
                 continue
             for loser in win.losers:
