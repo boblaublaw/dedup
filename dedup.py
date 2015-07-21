@@ -34,7 +34,7 @@ BUF_SIZE = 65536
 
 # default globals
 reverseSort=False
-deleteEmptyFiles = False    # TODO make this a CLI switch
+deleteEmptyFiles = True    # TODO make this a CLI switch
 deleteEmptyDirs = True      # TODO make this a CLI switch
 verbosity = 0
 db = None
@@ -110,37 +110,47 @@ def check_level(pathname):
     # thing is a path without a weight prefix.
     return 0, pathname
 
-def generate_map_commands(winnerMap, name):
-    """Turns a report into a list of rm commands"""
+def generate_map_header(winnerMap, name):
+    """Turns a report into a list of stats"""
     winnerList = winnerMap.keys()
-    if len(winnerList) == 0:
-        return
     winCount = 0 
     loserCount = 0 
+    loserBytes = 0
     for winner in winnerList:
         winCount = winCount + 1 
         losers = winnerMap[winner]
         for loser in losers:
             loserCount = loserCount + 1 
-    print '#' * 72
+            loserBytes = loserBytes + loser.count_bytes(deleted=True)
+    print "\n" + '#' * 72
     print '# ' + str(winCount), 
     if loserCount == 0:
         just_a_list = True
-        print 'loser ' + name
+        print name
     else:
         just_a_list = False
-        print 'winner and ' + str(loserCount) + ' loser ' + name
+        print 'winner and ' + str(loserCount) + ' loser ' + name,
+        print str(loserBytes) + ' bytes redundant'
+    return just_a_list
+
+def generate_map_commands(winnerMap, name):
+    winnerList = winnerMap.keys()
+    if len(winnerList) == 0:
+        return
+    just_a_list = generate_map_header(winnerMap, name)
 
     winnerList.sort()
-    for winner in winnerList:
-        if just_a_list:
+    if just_a_list:
+        for winner in winnerList:
             generate_delete(winner)
-        else:
+    else:
+        for winner in winnerList:
             losers = winnerMap[winner]
             print "#      '" + winner + "'" 
             for loser in losers:
                 generate_delete(loser.abspathname)
             print
+
 
 class EntryList:
     """A container for all source directories and files to examine"""
@@ -189,12 +199,12 @@ class EntryList:
                 print "I don't know what this is" + entry
                 sys.exit()
 
-    # EntryList.count_deleted_bytes
-    def count_deleted_bytes(self):
-        """Returns a btyecount of all the deleted objects within"""
+    # EntryList.count_bytes
+    def count_bytes(self, deleted=False):
+        """Returns a btyecount of all the (deleted) objects within"""
         bytes = 0
         for name, e in self.contents.iteritems():
-            bytes = bytes + e.count_deleted_bytes()
+            bytes = bytes + e.count_bytes(deleted)
         return bytes
 
     # EntryList.count_deleted
@@ -516,8 +526,9 @@ class DirObj():
         """Populates several "reports" that describe duplicated
         directories, files, as well as empty directories and files
         """
-        dirReport=reports['dirs']
-        emptyReport=reports['empty dirs']
+        dirReport = reports['dirs']
+        emptyReport = reports['dirs that are empty after reduction']
+        startedEmptyReport = reports['dirs that started empty']
 
         if self.deleted:
             if self.winner is not None:
@@ -531,17 +542,40 @@ class DirObj():
             else:
                 # this is a cheat wherein I use the emptyReport as a list of keys
                 # and I disregard the values
-                emptyReport[self.abspathname]=[]
+                if self.started_empty():
+                    startedEmptyReport[self.abspathname]=[]
+                else:
+                    emptyReport[self.abspathname]=[]
         else:
             for fileName, fileEntry in self.files.iteritems():
                 fileEntry.generate_reports(reports)
             for dirName, subdir in self.subdirs.iteritems():
                 subdir.generate_reports(reports)
 
+    # DirObj.started_empty
+    def started_empty(self):
+        """Checks if the dir was truly empty when the program was
+        invoked.
+        """
+        return (len(self.files) + len(self.subdirs)) == 0
+            
+        for fileName, fileEntry in self.files.iteritems():
+            if not fileEntry.deleted and not fileEntry.ignore:
+                return False
+
+        for dirName, subdir in self.subdirs.iteritems():
+            if (not subdir.deleted
+                    and not subdir.is_empty()
+                    and not subdir.ignore):
+                return False
+
+        return True
+
     # DirObj.is_empty
     def is_empty(self):
         """Checks if the dir is empty, ignoring items marked as deleted
-        or ignored.
+        or ignored.  (In other words, ignored items won't protect a 
+        directory from being marked for deletion.)
         """
         for fileName, fileEntry in self.files.iteritems():
             if not fileEntry.deleted and not fileEntry.ignore:
@@ -592,18 +626,21 @@ class DirObj():
         global deleteEmptyDirs
         if (len(self.files) + len(self.subdirs)) == 0:
             self.deleted = deleteEmptyDirs
+        
 
-    # DirObj.count_deleted_bytes
-    def count_deleted_bytes(self):
+    # DirObj.count_bytes
+    def count_bytes(self, deleted=False):
         """returns a count of all the sizes of the deleted objects
         within.
         """
         bytes = 0
         for name, d in self.subdirs.iteritems():
-            bytes = bytes + d.count_deleted_bytes()
+            bytes = bytes + d.count_bytes(deleted)
         for name, f in self.files.iteritems():
-            if f.deleted:
-                bytes = bytes + f.count_deleted_bytes()
+            if f.deleted and deleted:
+                bytes = bytes + f.count_bytes(deleted)
+            elif not f.deleted and not deleted:
+                bytes = bytes + f.count_bytes(deleted)
         return bytes
 
     # DirObj.count_deleted
@@ -668,8 +705,8 @@ class FileObj():
 
     # FileObj.generate_reports
     def generate_reports(self, reports):
-        fileReport=reports['files']
-        emptyReport=reports['empty files']
+        fileReport = reports['files']
+        emptyReport = reports['empty files']
         """Generates delete commands to dedup all contents"""
         if self.deleted and not self.ignore:
             if self.winner is not None:
@@ -704,15 +741,16 @@ class FileObj():
         print str(self.ignore) + '\t' + str(self.depth) + '\t',
         print self.hexdigest + ' ' + self.pathname
 
-    # FileObj.count_deleted_bytes
-    def count_deleted_bytes(self):
+    # FileObj.count_bytes
+    def count_bytes(self, deleted=False):
         """Returns a count of all the sizes of the deleted objects
         within
         """
-        if self.deleted:
+        if self.deleted and deleted:
              return self.bytes
-        else:
-            return 0
+        elif not self.deleted and not deleted:
+            return self.bytes
+        return 0 
 
     # FileObj.count_deleted
     def count_deleted(self):
@@ -877,7 +915,8 @@ if __name__ == '__main__':
 
         reports = { 'dirs': {},
                     'files': {},
-                    'empty dirs': {},
+                    'dirs that are empty after reduction': {},
+                    'dirs that started empty': {},
                     'empty files': {},
                     }
 
@@ -891,7 +930,7 @@ if __name__ == '__main__':
         #    e.display(False,False)
         endTime = time.time()
         print '# total bytes marked for deletion (not including',
-        print 'directory files): ' + str(allFiles.count_deleted_bytes())
+        print 'directory files): ' + str(allFiles.count_bytes(deleted=True))
         print '# total dedup running time: ' + str(endTime - startTime),
         print 'seconds.'
 
