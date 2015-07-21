@@ -36,9 +36,9 @@ chooseDeeper=False
 verbosity = 0
 db = None
 
-def peek_type(tuple, type):
-    """for checking the type of a list member which is also packed in a tuple.
-    This function assumes all list members are the same type.
+def member_is_type(tuple, type):
+    """for checking the type of a list member which is also packed in a 
+    tuple. This function assumes all list members are the same type.
     """
     list=tuple[1]
     return isinstance(list[0], type)
@@ -235,13 +235,15 @@ class HashMap:
             if isinstance(e, FileObj):
                 self.add_entry(e)
             else:
-                for dirEntry in e.dirwalk():
-                    if not dirEntry.deleted:
-                        for name, fileEntry in dirEntry.files.iteritems():
-                            if not fileEntry.deleted:
-                                self.add_entry(fileEntry)
-                        dirEntry.finalize()
-                        self.add_entry(dirEntry)
+                for dirEntry in ifilter(
+                        lambda x: x.deleted is False, 
+                        e.dirwalk()):
+                    for name, fileEntry in ifilter(
+                            lambda x: x[1].deleted is False,  
+                            dirEntry.files.iteritems()):
+                        self.add_entry(fileEntry)
+                    dirEntry.finalize()
+                    self.add_entry(dirEntry)
             maxd = e.max_depth()
             if self.maxDepth < maxd:
                 self.maxDepth = maxd
@@ -249,13 +251,13 @@ class HashMap:
     # HashMap.add_entry
     def add_entry(self, entry):
         """Store a file or directory in the HashMap, indexed by it's
-        hash.
+        hash, and then further appended to a list of other entries
+        with the same hash.
         """
         if entry.hexdigest in self.contentHash:
             self.contentHash[entry.hexdigest].append(entry)
         else:
             self.contentHash[entry.hexdigest] = [ entry ]
-
         if entry.depth < self.minDepth:
             self.minDepth = entry.depth
 
@@ -271,17 +273,21 @@ class HashMap:
         """Removes deleted objects from the HashMap"""
         deleteList = []
         for hashval, list in self.contentHash.iteritems():
-            newlist=[]
+            trimmedList=[]
             for entry in list:
                 if entry.deleted:
                     entry.delete()
                 else:
-                    newlist.append(entry)
-            if len(newlist) > 0:
-                self.contentHash[hashval]=newlist
+                    trimmedList.append(entry)
+            # store the trimmed list
+            if len(trimmedList) > 0:
+                self.contentHash[hashval]=trimmedList
             else:
+                # if no more entries exist for this hashval,
+                # remove the entry from the dict:
                 deleteList.append(hashval)
 
+        # remove deleted items from the hash lookup dict:
         for entry in deleteList:
             del self.contentHash[entry]
 
@@ -342,7 +348,8 @@ class HashMap:
         for entry in uniques:
             del self.contentHash[entry]
 
-        # delete the directories first, in order of (de/in)creasing depth
+        # delete the directories first, in order of (de/in)creasing depth,
+        # depending on the chooseDeeper setting.
         depths=range(self.minDepth-1,self.maxDepth+1)
         global chooseDeeper
         if chooseDeeper:
@@ -353,16 +360,18 @@ class HashMap:
 
         for depthFilter in depths:
             #print '# checking depth ' + str(depthFilter)
-            for hashval, candidates in ifilter(lambda x: peek_type(x,DirObj),self.contentHash.iteritems()):
+            for hashval, candidates in ifilter(lambda x: 
+                    member_is_type(x,DirObj),self.contentHash.iteritems()):
                 if chooseDeeper:
                     maybes = [x for x in candidates if x.depth < depthFilter ]
                 else:
                     maybes = [x for x in candidates if x.depth > depthFilter ]
                 if len(maybes) > 0:
                     self.resolve_candidates(maybes)
+
             self.prune()
 
-        for hashval, candidates in ifilter(lambda x: peek_type(x,FileObj),self.contentHash.iteritems()):
+        for hashval, candidates in ifilter(lambda x: member_is_type(x,FileObj),self.contentHash.iteritems()):
             self.resolve_candidates(candidates)
 
         self.prune()
@@ -376,16 +385,16 @@ class DirObj():
     """
     def __init__(self, name, weightAdjust=0, parent=None):
         self.name = name
-        self.files={}
+        self.files = {}
         self.deleted = False
         self.winner = None
-        self.subdirs={}
+        self.subdirs = {}
         self.weightAdjust = weightAdjust
         self.parent = parent
         ancestry = self.get_lineage()
-        self.pathname='/'.join(ancestry)
-        self.abspathname=os.path.abspath(self.pathname)
-        self.abspathnamelen=len(self.abspathname)
+        self.pathname = '/'.join(ancestry)
+        self.abspathname = os.path.abspath(self.pathname)
+        self.abspathnamelen = len(self.abspathname)
         self.depth = len(ancestry) + self.weightAdjust
         self.ignore = self.name in DELETE_LIST
 
@@ -522,7 +531,6 @@ class DirObj():
         """Checks if the dir is empty, ignoring items marked as deleted
         or ignored.
         """
-
         for fileName, fileEntry in self.files.iteritems():
             if not fileEntry.deleted and not fileEntry.ignore:
                 return False
@@ -559,7 +567,7 @@ class DirObj():
         create a meta-hash of all the hashes therein.  This allows us to
         test for directories which have the same contents.
         """
-        digests=[]
+        digests = []
         for filename, fileEntry in self.files.iteritems():
             digests.append(fileEntry.hexdigest)
         for dirname, dirEntry in self.subdirs.iteritems():
@@ -610,20 +618,20 @@ class FileObj():
 
         if self.parent is not None:
             ancestry = self.parent.get_lineage()
-            self.pathname='/'.join(ancestry) + '/' + self.name
+            self.pathname = '/'.join(ancestry) + '/' + self.name
             self.depth = len(ancestry) + self.weightAdjust
         else:
             self.pathname = self.name
             self.depth = self.weightAdjust
 
-        self.abspathname=os.path.abspath(self.pathname);
-        self.abspathnamelen=len(self.abspathname)
+        self.abspathname = os.path.abspath(self.pathname);
+        self.abspathnamelen = len(self.abspathname)
 
         statResult = os.stat(self.abspathname)
         self.modTime = statResult.st_mtime
         self.createTime = statResult.st_ctime
         self.bytes = statResult.st_size
-        self.hexdigest=get_hash(self)
+        self.hexdigest = get_hash(self)
 
     # FileObj.max_depth
     def max_depth(self):
