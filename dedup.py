@@ -33,6 +33,7 @@ BUF_SIZE = 65536
 
 # default globals
 reverseSort=False
+deleteEmptyFiles=False # TODO make this a CLI switch
 verbosity = 0
 db = None
 
@@ -74,6 +75,9 @@ def issocket(path):
     return stat.S_ISSOCK(mode)
 
 def generate_delete(filename):
+    """generates not-quite-safe rm commands.  TODO does not handle
+    pathnames which contain both the ' and " characters.
+    """
     # characters that we will wrap with double quotes:
     delimTestChars = set("'()")
     if any((c in delimTestChars) for c in filename):
@@ -82,11 +86,17 @@ def generate_delete(filename):
         print "rm -rf '" + filename + "'"
 
 def check_int(s):
+    """helper function that returns true if you pass in a string that
+    represents an integer
+    """
     if s[0] in ('-', '+'):
         return s[1:].isdigit()
     return s.isdigit()
 
 def check_level(pathname):
+    """inspects a pathname for a weight prefix on the front.  This
+    completely breaks files that actually start with "<int>:"
+    """
     parts = pathname.split(':')
     if len(parts) > 1:
         firstPart = parts.pop(0)
@@ -99,6 +109,7 @@ def check_level(pathname):
     return 0, pathname
 
 def generate_map_commands(winnerMap, name):
+    """Turns a report into a list of rm commands"""
     winnerList = winnerMap.keys()
     if len(winnerList) == 0:
         return
@@ -630,7 +641,7 @@ class FileObj():
         self.bytes = statResult.st_size
         self.hexdigest = get_hash(self)
         if self.bytes == 0:
-            self.deleted = True
+            self.deleted = deleteEmptyFiles
         else:
             self.deleted = False
 
