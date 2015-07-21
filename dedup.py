@@ -36,6 +36,8 @@ DO_NOT_DELETE_LIST = []
 BUF_SIZE = 65536
 
 # default globals
+sortResultsBy='totalLoserBytes' # TODO make a CLI switch
+reverseResults=True             # TODO make a CLI switch
 reverseSort=False
 deleteEmptyFiles = True    # TODO make this a CLI switch
 deleteEmptyDirs = True      # TODO make this a CLI switch
@@ -121,7 +123,7 @@ def check_level(pathname):
     return 0, pathname
 
 def synthesize_report(report):
-    newReport = []
+    winnerList = []
     for winnerName, loserList in report.iteritems():
         loserCount = len(loserList)
         loserBytes = 0
@@ -134,22 +136,33 @@ def synthesize_report(report):
         newResult['loserCount'] = loserCount
         newResult['totalLoserBytes'] = totalLoserBytes
         newResult['loserList'] = loserList
-        newReport.append( newResult )
-    return newReport
+        winnerList.append( newResult )
+    return winnerList, loserBytes, loserCount
 
-def synthesize_reports(reports):
-    newReports={}
-    for reportName, report in reports.iteritems():
-        newReports[reportName]=synthesize_report(report)
-    return newReports
+def synthesize_reports(reportMap):
+    reportList=[]
+    for reportName, report in reportMap.iteritems():
+        newReport={}
+        newReport['reportName']=reportName
+        newReport['winnerList'], newReport['totalLoserBytes'], newReport['loserCount'] = synthesize_report(report)
+        reportList.append(newReport)
+    
+    global sortResultsBy, reverseResults
+    reportList.sort(key=lambda x: x[sortResultsBy], reverse=reverseResults)
+    return reportList
 
-def generate_map_commands(winnerList, name):
-    if len(winnerList) == 0:
+def generate_map_commands(report):
+    winnerList = report['winnerList']
+    reportName = report['reportName']
+    winCount = len(winnerList)
+    # dont generate empty sections
+    if winCount == 0:
         return
 
-    winnerList.sort(key=lambda x: x['winnerName'])
+    # set the order to present each result from this report:
+    global sortResultsBy, reverseResults
+    winnerList.sort(key=lambda x: x[sortResultsBy], reverse=reverseResults)
 
-    winCount = len(winnerList)
     loserCount = 0
     loserBytes = 0
     for winner in winnerList:
@@ -157,10 +170,11 @@ def generate_map_commands(winnerList, name):
         loserBytes = loserBytes + winner['totalLoserBytes']
     print "\n" + '#' * 72
     print '# ' + str(winCount),
-    print 'winner and ' + str(loserCount) + ' loser ' + name,
+    print 'winner and ' + str(loserCount) + ' loser ' + reportName,
     print 'will make ' + sizeof_fmt(loserBytes) + ' of file data redundant'
 
     for winner in winnerList:
+        print "# This subsection could save " + sizeof_fmt(winner['totalLoserBytes'])
         print "#      '" + winner['winnerName'] + "'" 
         for loser in winner['loserList']:
             generate_delete(loser.abspathname)
@@ -923,8 +937,8 @@ if __name__ == '__main__':
 
         reportLists = synthesize_reports(reportMaps)
 
-        for reportName, report in reportLists.iteritems():
-            generate_map_commands(report, reportName)
+        for report in reportLists:
+            generate_map_commands(report)
 
         #for e in allFiles.walk():
         #    e.display(False,False)
