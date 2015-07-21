@@ -47,6 +47,9 @@ Where options can be:
                                           to check if it exists.  if it does not
                                           exist in the filesystem, it is removed
                                           from the db.
+ * -r/--reverse-sort                    - reverse the comparison logic which
+                                          decides which files to keep and which
+                                          to mark for deletion.
 
 Simplest Example:
      dedup.py path1 path2

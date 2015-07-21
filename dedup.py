@@ -32,7 +32,7 @@ DO_NOT_DELETE_LIST = []
 BUF_SIZE = 65536
 
 # default globals
-chooseDeeper=False
+reverseSort=False
 verbosity = 0
 db = None
 
@@ -98,6 +98,36 @@ def check_level(pathname):
     # thing is a path without a weight prefix.
     return 0, pathname
 
+def generate_map_commands(winnerMap, name):
+    winnerList = winnerMap.keys()
+    if len(winnerList) == 0:
+        return
+    winCount = 0 
+    loserCount = 0 
+    for winner in winnerList:
+        winCount = winCount + 1 
+        losers = winnerMap[winner]
+        for loser in losers:
+            loserCount = loserCount + 1 
+    print '#' * 72
+    print '# ',
+    if loserCount == 0:
+        just_a_list = True
+        print str(winCount) + ' loser ' + name
+    else:
+        just_a_list = False
+        print str(winCount) + ' winner and ' + str(loserCount) + ' loser ' + name
+
+    winnerList.sort()
+    for winner in winnerList:
+        if just_a_list:
+            generate_delete(winner)
+        else:
+            losers = winnerMap[winner]
+            print "#      '" + winner + "'" 
+            for loser in losers:
+                generate_delete(loser)
+            print
 
 class EntryList:
     """A container for all source directories and files to examine"""
@@ -187,40 +217,11 @@ class EntryList:
         emptyMap={}
 
         for name, e in self.contents.iteritems():
-            e.generate_commands(selectDirMap, selectFileMap, emptyMap)
+            e.generate_report(selectDirMap, selectFileMap, emptyMap)
 
-        winnerList = selectDirMap.keys()
-        if len(winnerList):
-            print '#' * 72
-            print '# redundant directories:'
-            winnerList.sort()
-            for winner in winnerList:
-                losers = selectDirMap[winner]
-                print "#      '" + winner + "'"
-                for loser in losers:
-                    generate_delete(loser)
-                print
-
-        winnerList = selectFileMap.keys()
-        if len(winnerList):
-            print '#' * 72
-            print '# redundant files:'
-            winnerList.sort()
-            for winner in winnerList:
-                losers = selectFileMap[winner]
-                print "#      '" + winner + "'"
-                for loser in losers:
-                    generate_delete(loser)
-                print
-
-        emptyDirs = emptyMap.keys()
-        if len(emptyDirs):
-            print '#' * 72
-            print '# directories that are or will be empty:'
-            emptyDirs.sort()
-            for emptyDir in emptyDirs:
-                generate_delete(emptyDir)
-
+        generate_map_commands(selectDirMap, 'dirs')
+        generate_map_commands(selectFileMap, 'files')
+        generate_map_commands(emptyMap, 'empty dirs')
 
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
@@ -297,17 +298,17 @@ class HashMap:
         identical contents (as determined elsewhere) to determine which of
         the candidates is the "keeper" (or winner).  The other candidates
         are designated losers.  The winner is selected by comparing the
-        depths of the candidates.  If chooseDeeper is true, the deepest
+        depths of the candidates.  If reverseSort is true, the deepest
         candidate is chosen, else the shallowest is chosen.  In the case
         of a tie, the length of the full path is compared.
         """
         if len(candidates) == 0:
             return
 
-        global chooseDeeper
+        global reverseSort
         candidates.sort(
             key=attrgetter('depth','abspathnamelen','abspathname'), 
-            reverse=chooseDeeper)
+            reverse=reverseSort)
         winner = candidates.pop(0)
 
         if isinstance(winner, DirObj) and winner.is_empty():
@@ -351,10 +352,16 @@ class HashMap:
             del self.contentHash[entry]
 
         # delete the directories first, in order of (de/in)creasing depth,
-        # depending on the chooseDeeper setting.
+        # depending on the reverseSort setting.
+        #
+        # This approach isn't strictly required but it results in fewer
+        # calls to this function if we delete leaf nodes first, as it will
+        # allow non-leaf directories to match on subsequent calls to 
+        # resolve().
+
         depths=range(self.minDepth-1,self.maxDepth+1)
-        global chooseDeeper
-        if chooseDeeper:
+        global reverseSort
+        if reverseSort:
             depths.reverse()
         if verbosity > 0:
             print '# checking candidates in dir depth order:',
@@ -364,7 +371,7 @@ class HashMap:
             #print '# checking depth ' + str(depthFilter)
             for hashval, candidates in ifilter(lambda x: 
                     member_is_type(x,DirObj),self.contentHash.iteritems()):
-                if chooseDeeper:
+                if reverseSort:
                     maybes = [x for x in candidates if x.depth < depthFilter ]
                 else:
                     maybes = [x for x in candidates if x.depth > depthFilter ]
@@ -500,8 +507,8 @@ class DirObj():
         for name, f in self.files.iteritems():
             f.delete()
 
-    # DirObj.generate_commands
-    def generate_commands(self, selectDirMap, selectFileMap, emptyMap):
+    # DirObj.generate_report
+    def generate_report(self, selectDirMap, selectFileMap, emptyMap):
         """Generates delete commands to dedup all contents of this
         directory.
         """
@@ -515,14 +522,16 @@ class DirObj():
                     # start a new loser list:
                     selectDirMap[self.winner.abspathname] = [self.abspathname]
             else:
-                emptyMap[self.abspathname]=True
+                # this is a cheat wherein I use the emptyMap as a list of keys
+                # and I disregard the values
+                emptyMap[self.abspathname]=[]
         else:
             for fileName, fileEntry in self.files.iteritems():
-                fileEntry.generate_commands(selectDirMap,
+                fileEntry.generate_report(selectDirMap,
                                             selectFileMap,
                                             emptyMap)
             for dirName, subdir in self.subdirs.iteritems():
-                subdir.generate_commands(selectDirMap,
+                subdir.generate_report(selectDirMap,
                                             selectFileMap,
                                             emptyMap)
 
@@ -647,8 +656,8 @@ class FileObj():
         """Mark for deletion"""
         self.deleted = True
 
-    # FileObj.generate_commands
-    def generate_commands(self, selectDirMap, selectFileMap, emptyMap):
+    # FileObj.generate_report
+    def generate_report(self, selectDirMap, selectFileMap, emptyMap):
         """Generates delete commands to dedup all contents"""
         if self.deleted and not self.ignore:
             if self.winner is not None:
@@ -665,7 +674,9 @@ class FileObj():
                     # create a new loserList
                     selectFileMap[self.winner.abspathname]=[self.abspathname]
             else:
-                emptyMap[self.abspathname] = True
+                # this is a cheat wherein I use the emptyMap as a list of keys
+                # and I disregard the values
+                emptyMap[self.abspathname] = []
 
     # FileObj.prune_empty
     def prune_empty(self):
@@ -810,12 +821,12 @@ if __name__ == '__main__':
                     help="clean hash cache instead of normal operation")
     parser.add_argument("-s", "--stagger-paths", action="store_true",
                     help="always prefer files in argument order")
-    parser.add_argument("-l", "--choose-longer", action="store_true",
-                    help="choose the longer path depth and pathnames")
+    parser.add_argument("-r", "--reverse-sort", action="store_true",
+                    help="reverse the dir/file selection choices")
     args, paths = parser.parse_known_args()
 
     verbosity = args.verbosity
-    chooseDeeper = args.choose_longer
+    reverseSort = args.reverse_sort
 
     if args.database is not None:
         db=HashDbObj(args.database)
