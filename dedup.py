@@ -124,6 +124,7 @@ def check_level(pathname):
 
 def synthesize_report(report):
     winnerList = []
+    allLoserBytes = 0
     for winnerName, loserList in report.iteritems():
         loserCount = len(loserList)
         loserBytes = 0
@@ -131,13 +132,18 @@ def synthesize_report(report):
             loserBytes=loserList[0].count_bytes(True)
             loserList.sort(key=lambda x: x.abspathname)
         totalLoserBytes=loserBytes * loserCount
+        allLoserBytes = allLoserBytes + totalLoserBytes
         newResult = {}
         newResult['winnerName'] = winnerName
         newResult['loserCount'] = loserCount
         newResult['totalLoserBytes'] = totalLoserBytes
         newResult['loserList'] = loserList
         winnerList.append( newResult )
-    return winnerList, loserBytes, loserCount
+
+    # set the order to present each result from this report:
+    global sortResultsBy, reverseResults
+    winnerList.sort(key=lambda x: x[sortResultsBy], reverse=reverseResults)
+    return winnerList, allLoserBytes, loserCount
 
 def synthesize_reports(reportMap):
     reportList=[]
@@ -153,25 +159,18 @@ def synthesize_reports(reportMap):
 
 def generate_map_commands(report):
     winnerList = report['winnerList']
-    reportName = report['reportName']
     winCount = len(winnerList)
     # dont generate empty sections
     if winCount == 0:
         return
+    reportName = report['reportName']
+    totalLoserBytes = report['totalLoserBytes']
+    loserCount = report['loserCount']
 
-    # set the order to present each result from this report:
-    global sortResultsBy, reverseResults
-    winnerList.sort(key=lambda x: x[sortResultsBy], reverse=reverseResults)
-
-    loserCount = 0
-    loserBytes = 0
-    for winner in winnerList:
-        loserCount = loserCount + winner['loserCount']
-        loserBytes = loserBytes + winner['totalLoserBytes']
     print "\n" + '#' * 72
     print '# ' + str(winCount),
     print 'winner and ' + str(loserCount) + ' loser ' + reportName,
-    print 'will make ' + sizeof_fmt(loserBytes) + ' of file data redundant'
+    print 'will make ' + sizeof_fmt(totalLoserBytes) + ' of file data redundant'
 
     for winner in winnerList:
         print "# This subsection could save " + sizeof_fmt(winner['totalLoserBytes'])
