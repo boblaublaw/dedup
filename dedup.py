@@ -120,34 +120,26 @@ def check_level(pathname):
     # thing is a path without a weight prefix.
     return 0, pathname
 
-def generate_map_header(winnerMap, name):
-    """Turns a report into a list of stats"""
-    winnerList = winnerMap.keys()
-    winCount = 0 
-    loserCount = 0 
-    loserBytes = 0
-    for winner in winnerList:
-        winCount = winCount + 1 
-        losers = winnerMap[winner]
-        for loser in losers:
-            loserCount = loserCount + 1 
-            loserBytes = loserBytes + loser.count_bytes(deleted=True)
-    print "\n" + '#' * 72
-    print '# ' + str(winCount), 
-    print 'winner and ' + str(loserCount) + ' loser ' + name,
-    print 'will make ' + sizeof_fmt(loserBytes) + ' redundant'
-
-def generate_map_commands(winnerMap, name):
-    winnerList = winnerMap.keys()
+def generate_map_commands(winnerList, name):
     if len(winnerList) == 0:
         return
-    generate_map_header(winnerMap, name)
 
-    winnerList.sort()
+    winnerList.sort(key=lambda x: x[0])
+
+    winCount = len(winnerList)
+    loserCount = 0
+    loserBytes = 0
     for winner in winnerList:
-        losers = winnerMap[winner]
-        print "#      '" + winner + "'" 
-        for loser in losers:
+        loserCount = loserCount + winner[1]
+        loserBytes = loserBytes + winner[2]
+    print "\n" + '#' * 72
+    print '# ' + str(winCount),
+    print 'winner and ' + str(loserCount) + ' loser ' + name,
+    print 'will make ' + sizeof_fmt(loserBytes) + ' of file data redundant'
+
+    for winner in winnerList:
+        print "#      '" + winner[0] + "'" 
+        for loser in winner[3]:
             generate_delete(loser.abspathname)
         print
 
@@ -849,10 +841,13 @@ def synthesize_report(report):
             loserList.sort(key=lambda x: x.abspathname)
         totalLoserBytes=loserBytes * loserCount
         newReport.append( [ winnerName, loserCount, totalLoserBytes, loserList ] )
+    return newReport
 
 def synthesize_reports(reports):
+    newReports={}
     for reportName, report in reports.iteritems():
-        report=synthesize_report(report)
+        newReports[reportName]=synthesize_report(report)
+    return newReports
 
 if __name__ == '__main__':
     startTime = time.time()
@@ -908,19 +903,22 @@ if __name__ == '__main__':
                 print '# ' + str(deleted) + ' entries deleted on pass',
                 print str(passCount)
 
-        reports = { 'directories': defaultdict(lambda: []),
-                    'directories that are empty after reduction': defaultdict(lambda: []),
-                    'directories that started empty': defaultdict(lambda: []),
-                    'files': defaultdict(lambda: []),
-                    'empty files': defaultdict(lambda: []),
-                    }
+        reportNames = [ 'directories', 'directories that are empty after reduction',
+                        'directories that started empty', 'files', 'empty files' ]
+
+        # create each category for files to delete in its own report.
+        # reports are a dict indexed by "winner" that points to a metadata
+        # and a list of losers
+        reportMaps={}
+        for reportName in reportNames:
+            reportMaps[reportName] = defaultdict(lambda: [])
 
         for name, e in allFiles.contents.iteritems():
-            e.generate_reports(reports)
+            e.generate_reports(reportMaps)
 
-        synthesize_reports(reports)
+        reportLists = synthesize_reports(reportMaps)
 
-        for reportName, report in reports.iteritems():
+        for reportName, report in reportLists.iteritems():
             generate_map_commands(report, reportName)
 
         #for e in allFiles.walk():
