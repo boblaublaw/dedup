@@ -128,10 +128,12 @@ def synthesize_report(report):
     for winnerName, loserList in report.iteritems():
         loserCount = len(loserList)
         loserBytes = 0
+        totalLoserBytes = 0
         if loserCount > 0:
-            loserBytes=loserList[0].count_bytes(True)
+            loserBytes = loserList[0].count_bytes(True)
             loserList.sort(key=lambda x: x.abspathname)
-        totalLoserBytes=loserBytes * loserCount
+            for loser in loserList:
+                totalLoserBytes = totalLoserBytes + loser.count_bytes(True)
         allLoserBytes = allLoserBytes + totalLoserBytes
         newResult = {}
         newResult['winnerName'] = winnerName
