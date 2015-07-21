@@ -169,15 +169,21 @@ def generate_map_commands(report):
     reportName = report['reportName']
     totalMarkedBytes = report['totalMarkedBytes']
     markedCount = report['markedCount']
+    global emptyReportNames
 
     print "\n" + '#' * 72
-    print '# ' + reportName + ': ' + str(winCount),
-    print 'to keep and ' + str(markedCount) + ' to remove'
-    print 'This section could make ' + sizeof_fmt(totalMarkedBytes) + ' of file data redundant'
+    if reportName in emptyReportNames:
+        print '# ' + reportName + ': ' + str(markedCount) + ' to remove'
+        print '# This section could make ' + sizeof_fmt(totalMarkedBytes) + ' of file data redundant'
+    else:
+        print '# ' + reportName + ': ' + str(winCount),
+        print 'to keep and ' + str(markedCount) + ' to remove'
+        print '# This section could make ' + sizeof_fmt(totalMarkedBytes) + ' of file data redundant'
 
     for winner in winnerList:
         print "# This subsection could save " + sizeof_fmt(winner['totalMarkedBytes'])
-        print "#      '" + winner['winnerName'] + "'" 
+        if reportName not in emptyReportNames:
+            print "#      '" + winner['winnerName'] + "'" 
         for loser in winner['loserList']:
             generate_delete(loser.abspathname)
         print
@@ -872,14 +878,17 @@ if __name__ == '__main__':
                 print '# ' + str(deleted) + ' entries deleted on pass',
                 print str(passCount)
 
-        reportNames = [ 'directories', 'directories that are empty after reduction',
-                        'directories that started empty', 'files', 'empty files' ]
+        # a list of report names we will generate.  Note that these are later
+        # indexed elsewhere, so be careful renaming
+        regularReportNames = [ 'directories', 'files' ]
+        emptyReportNames = [ 'directories that are empty after reduction',
+                        'directories that started empty', 'empty files' ]
 
         # create each category for files to delete in its own report.
         # reports are a dict indexed by "winner" that points to a metadata
         # and a list of losers
         reportMaps={}
-        for reportName in reportNames:
+        for reportName in chain(regularReportNames, emptyReportNames):
             reportMaps[reportName] = defaultdict(lambda: [])
 
         for name, e in allFiles.contents.iteritems():
