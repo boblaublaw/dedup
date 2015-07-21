@@ -19,11 +19,13 @@ __all__ = ["FileObj", "DirObj", "EntryObj", "HashDbObj" ]
 # This list represents files that may linger in directories preventing
 # this algorithm from recognizing them as empty.  we mark them as
 # deletable, even if we do NOT have other copies available:
-DELETE_LIST =    [ "album.dat", "album.dat.lock", "photos.dat",
+DELETE_FILE_LIST =    [ "album.dat", "album.dat.lock", "photos.dat",
                 "photos.dat.lock", "Thumbs.db", ".lrprev", "Icon\r",
-                ".dropbox.cache", ".DS_Store", "desktop.ini",
-                ".dropbox.attr" ]
+                ".DS_Store", "desktop.ini", ".dropbox.attr", 
+                ".typeAttributes.dict" ]
 
+DELETE_DIR_LIST = [ ".git", ".svn", ".dropbox.cache", "__MACOSX" ]
+ 
 # This list describes files and directories we do not want to risk
 # messing with.  If we encounter these, never mark them as deletable.
 # TODO - implement this
@@ -130,7 +132,7 @@ def generate_map_header(winnerMap, name):
     else:
         just_a_list = False
         print 'winner and ' + str(loserCount) + ' loser ' + name,
-        print str(loserBytes) + ' bytes redundant'
+        print 'will make ' + str(loserBytes) + ' bytes redundant'
     return just_a_list
 
 def generate_map_commands(winnerMap, name):
@@ -182,13 +184,21 @@ class EntryList:
                 self.contents[entry] = topDirEntry
                 for dirName, subdirList, fileList in os.walk(entry,
                                                         topdown = False):
-                    dirEntry = topDirEntry.place_dir(dirName,
-                                                        weightAdjust)
+                    # we do not walk into or add names from our ignore list.  
+                    # We wont delete them if they are leaf nodes and we wont 
+                    # count them towards parent nodes.
+                    if os.path.basename(dirName) in DELETE_DIR_LIST: 
+                        continue
+
+                    dirEntry = topDirEntry.place_dir(dirName, weightAdjust)
+                    if dirEntry is None:
+                        continue
+
                     for fname in fileList:
                         if issocket(dirEntry.abspathname + '/' + fname):
                             print '# Skipping a socket',
                             print dirEntry.abspathname + '/' + fname
-                        else:
+                        elif os.path.basename(fname) not in DELETE_FILE_LIST:
                             newFile = FileObj(fname,
                                             parent = dirEntry,
                                             weightAdjust = weightAdjust)
@@ -417,7 +427,6 @@ class DirObj():
         self.abspathname = os.path.abspath(self.pathname)
         self.abspathnamelen = len(self.abspathname)
         self.depth = len(ancestry) + self.weightAdjust
-        self.ignore = self.name in DELETE_LIST
 
     # DirObj.get_lineage
     def get_lineage(self):
@@ -459,7 +468,7 @@ class DirObj():
             for name, entry in self.files.iteritems():
                 entry.display(contents, recurse);
         print '# Directory\t' + str(self.deleted) + '\t',
-        print str(self.ignore) + '\t' + str(self.depth) + '\t',
+        print str(self.depth) + '\t',
         print self.hexdigest + ' ' + self.abspathname
 
     # DirObj.place_dir
@@ -476,6 +485,8 @@ class DirObj():
             if x != y:
                 print x + ' and ' + y + ' do not match'
                 raise LookupError
+            if x in DELETE_DIR_LIST:
+                return None
 
         if len(inputDirList) == 0:
             return self
@@ -557,10 +568,9 @@ class DirObj():
         """Checks if the dir was empty when the program was
         invoked.  If we see ignored items, we ignore them.
         """
-        for name, entry in chain(self.files.iteritems(), self.subdirs.iteritems()):
-            if not entry.ignore:
-                return False
-        return True;
+        if (len(self.subdirs) + len(self.files)) == 0:
+            return True
+        return False
 
     # DirObj.is_empty
     def is_empty(self):
@@ -570,13 +580,11 @@ class DirObj():
         for deletion.)
         """
         for fileName, fileEntry in self.files.iteritems():
-            if not fileEntry.deleted and not fileEntry.ignore:
+            if not fileEntry.deleted:
                 return False
 
         for dirName, subdir in self.subdirs.iteritems():
-            if (not subdir.deleted
-                    and not subdir.is_empty()
-                    and not subdir.ignore):
+            if not subdir.deleted and not subdir.is_empty():
                 return False
 
         return True
@@ -657,7 +665,6 @@ class FileObj():
         self.winner = None
         self.parent = parent
         self.weightAdjust = weightAdjust
-        self.ignore = self.name in DELETE_LIST
 
         if self.parent is not None:
             ancestry = self.parent.get_lineage()
@@ -675,11 +682,10 @@ class FileObj():
         self.createTime = statResult.st_ctime
         self.bytes = statResult.st_size
         self.hexdigest = get_hash(self)
+        self.deleted = False
         global deleteEmptyFiles
         if self.bytes == 0:
-            self.deleted = deleteEmptyFiles or self.ignore
-        else:
-            self.deleted = self.ignore
+            self.deleted = deleteEmptyFiles 
 
     # FileObj.max_depth
     def max_depth(self):
@@ -700,7 +706,7 @@ class FileObj():
         fileReport = reports['files']
         emptyReport = reports['empty files']
         """Generates delete commands to dedup all contents"""
-        if self.deleted and not self.ignore:
+        if self.deleted:
             if self.winner is not None:
                 # just a trivial check to confirm hash matches:
                 if self.bytes != self.winner.bytes:
@@ -730,7 +736,7 @@ class FileObj():
     def display(self, contents=False, recurse=False):
         """Generate a human readable report."""
         print '# File\t\t' + str(self.deleted) + '\t',
-        print str(self.ignore) + '\t' + str(self.depth) + '\t',
+        print str(self.depth) + '\t',
         print self.hexdigest + ' ' + self.pathname
 
     # FileObj.count_bytes
@@ -841,7 +847,7 @@ class HashDbObj():
                 if verbosity > 0:
                     sys.stdout.write('.')
                     sys.stdout.flush()
-        print "\n# reorganizing " + self.pathname
+        print "# reorganizing " + self.pathname
         self.db.reorganize()
         self.db.sync()
         print '# done cleaning ' + self.pathname + ', removed',
@@ -849,7 +855,7 @@ class HashDbObj():
         print 'nodes!'
         endTime = time.time()
         print '# Database clean complete after ' + str(endTime - startTime),
-        print 'seconds.'
+        print 'seconds.\n'
 
 if __name__ == '__main__':
     startTime = time.time()
@@ -921,7 +927,7 @@ if __name__ == '__main__':
         #for e in allFiles.walk():
         #    e.display(False,False)
         endTime = time.time()
-        print '# total bytes marked for deletion (not including',
+        print '\n# total bytes marked for deletion (not including',
         print 'directory files): ' + str(allFiles.count_bytes(deleted=True))
         print '# total dedup running time: ' + str(endTime - startTime),
         print 'seconds.'
