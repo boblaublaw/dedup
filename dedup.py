@@ -41,6 +41,13 @@ deleteEmptyDirs = True      # TODO make this a CLI switch
 verbosity = 0
 db = None
 
+def sizeof_fmt(num, suffix='B'):
+    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+        if abs(num) < 1024.0:
+            return "%3.1f %s%s" % (num, unit, suffix)
+        num /= 1024.0
+    return "%.1f%s%s" % (num, 'Yi', suffix)
+
 def member_is_type(tuple, type):
     """for checking the type of a list member which is also packed in a 
     tuple. This function assumes all list members are the same type.
@@ -132,7 +139,7 @@ def generate_map_header(winnerMap, name):
     else:
         just_a_list = False
         print 'winner and ' + str(loserCount) + ' loser ' + name,
-        print 'will make ' + str(loserBytes) + ' bytes redundant'
+        print 'will make ' + sizeof_fmt(loserBytes) + ' redundant'
     return just_a_list
 
 def generate_map_commands(winnerMap, name):
@@ -537,9 +544,9 @@ class DirObj():
         """Populates several "reports" that describe duplicated
         directories, files, as well as empty directories and files
         """
-        dirReport = reports['dirs']
-        emptyReport = reports['dirs that are empty after reduction']
-        startedEmptyReport = reports['dirs that started empty']
+        dirReport = reports['directories']
+        emptyReport = reports['directories that are empty after reduction']
+        startedEmptyReport = reports['directories that started empty']
 
         if self.deleted:
             if self.winner is not None:
@@ -706,24 +713,25 @@ class FileObj():
         fileReport = reports['files']
         emptyReport = reports['empty files']
         """Generates delete commands to dedup all contents"""
-        if self.deleted:
-            if self.winner is not None:
-                # just a trivial check to confirm hash matches:
-                if self.bytes != self.winner.bytes:
-                    print '# BIRTHDAY LOTTERY CRISIS!'
-                    print '# matched hashes and mismatched sizes!'
-                    sys.exit(-1)
-                if self.winner.abspathname in fileReport:
-                    # use existing loserList
-                    loserList = fileReport[self.winner.abspathname]
-                    loserList.append(self)
-                else:
-                    # create a new loserList
-                    fileReport[self.winner.abspathname] = [ self ]
-            else:
-                # this is a cheat wherein I use the emptyReport as a list of keys
-                # and I disregard the values
-                emptyReport[self.abspathname] = [ ]
+        if not self.deleted:
+            return
+        # this is a cheat wherein I use the emptyReport as a list of keys
+        # and I disregard the values
+        if self.winner is None:
+            emptyReport[self.abspathname] = [ ]
+            return
+        # just a trivial check to confirm hash matches:
+        if self.bytes != self.winner.bytes:
+            print '# BIRTHDAY LOTTERY CRISIS!'
+            print '# matched hashes and mismatched sizes!'
+            sys.exit(-1)
+        if self.winner.abspathname in fileReport:
+            # use existing loserList
+            loserList = fileReport[self.winner.abspathname]
+            loserList.append(self)
+        else:
+            # create a new loserList
+            fileReport[self.winner.abspathname] = [ self ]
 
     # FileObj.prune_empty
     def prune_empty(self):
@@ -911,10 +919,10 @@ if __name__ == '__main__':
                 print '# ' + str(deleted) + ' entries deleted on pass',
                 print str(passCount)
 
-        reports = { 'dirs': {},
+        reports = { 'directories': {},
                     'files': {},
-                    'dirs that are empty after reduction': {},
-                    'dirs that started empty': {},
+                    'directories that are empty after reduction': {},
+                    'directories that started empty': {},
                     'empty files': {},
                     }
 
