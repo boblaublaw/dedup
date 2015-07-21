@@ -120,26 +120,49 @@ def check_level(pathname):
     # thing is a path without a weight prefix.
     return 0, pathname
 
+def synthesize_report(report):
+    newReport = []
+    for winnerName, loserList in report.iteritems():
+        loserCount = len(loserList)
+        loserBytes = 0
+        if loserCount > 0:
+            loserBytes=loserList[0].count_bytes(True)
+            loserList.sort(key=lambda x: x.abspathname)
+        totalLoserBytes=loserBytes * loserCount
+        newResult = {}
+        newResult['winnerName'] = winnerName
+        newResult['loserCount'] = loserCount
+        newResult['totalLoserBytes'] = totalLoserBytes
+        newResult['loserList'] = loserList
+        newReport.append( newResult )
+    return newReport
+
+def synthesize_reports(reports):
+    newReports={}
+    for reportName, report in reports.iteritems():
+        newReports[reportName]=synthesize_report(report)
+    return newReports
+
 def generate_map_commands(winnerList, name):
     if len(winnerList) == 0:
         return
 
-    winnerList.sort(key=lambda x: x[0])
+    winnerList.sort(key=lambda x: x['winnerName'])
 
     winCount = len(winnerList)
     loserCount = 0
     loserBytes = 0
     for winner in winnerList:
-        loserCount = loserCount + winner[1]
-        loserBytes = loserBytes + winner[2]
+        loserCount = loserCount + winner['loserCount']
+        loserBytes = loserBytes + winner['totalLoserBytes']
     print "\n" + '#' * 72
     print '# ' + str(winCount),
     print 'winner and ' + str(loserCount) + ' loser ' + name,
     print 'will make ' + sizeof_fmt(loserBytes) + ' of file data redundant'
 
     for winner in winnerList:
-        print "#      '" + winner[0] + "'" 
-        for loser in winner[3]:
+        print "#      '" + winner['winnerName'] + "'" 
+        for loser in winner['loserList']:
             generate_delete(loser.abspathname)
         print
 
@@ -830,24 +853,6 @@ class HashDbObj():
         endTime = time.time()
         print '# Database clean complete after ' + str(endTime - startTime),
         print 'seconds.\n'
-
-def synthesize_report(report):
-    newReport = []
-    for winnerName, loserList in report.iteritems():
-        loserCount = len(loserList)
-        loserBytes = 0
-        if loserCount > 0:
-            loserBytes=loserList[0].count_bytes(True)
-            loserList.sort(key=lambda x: x.abspathname)
-        totalLoserBytes=loserBytes * loserCount
-        newReport.append( [ winnerName, loserCount, totalLoserBytes, loserList ] )
-    return newReport
-
-def synthesize_reports(reports):
-    newReports={}
-    for reportName, report in reports.iteritems():
-        newReports[reportName]=synthesize_report(report)
-    return newReports
 
 if __name__ == '__main__':
     startTime = time.time()
