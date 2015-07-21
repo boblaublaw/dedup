@@ -44,7 +44,7 @@ deleteEmptyDirs = True      # TODO make this a CLI switch
 verbosity = 0
 db = None
 
-def sizeof_fmt(num, suffix='B')r
+def sizeof_fmt(num, suffix='B'):
     """helper function found on stackoverflow"""
     for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
         if abs(num) < 1024.0:
@@ -126,8 +126,10 @@ def check_level(pathname):
 def synthesize_report(report):
     winnerList = []
     allMarkedBytes = 0
+    allMarkedCount = 0
     for winnerName, loserList in report.iteritems():
         markedCount = len(loserList)
+        allMarkedCount = allMarkedCount + markedCount
         totalMarkedBytes = 0
         if markedCount > 0:
             loserList.sort(key=lambda x: x.abspathname)
@@ -144,7 +146,7 @@ def synthesize_report(report):
     # set the order to present each result from this report:
     global sortResultsBy, reverseResults
     winnerList.sort(key=lambda x: x[sortResultsBy], reverse=reverseResults)
-    return winnerList, allMarkedBytes, markedCount
+    return winnerList, allMarkedBytes, allMarkedCount
 
 def synthesize_reports(reportMap):
     reportList=[]
@@ -889,8 +891,8 @@ if __name__ == '__main__':
             generate_map_commands(report)
 
         endTime = time.time()
-        print '\n# total bytes marked for deletion (not including',
-        print 'directory files): ' + sizeof_fmt(allFiles.count_bytes(deleted=True))
+        print '\n# total file data bytes marked for deletion',
+        print sizeof_fmt(allFiles.count_bytes(deleted=True))
         print '# total dedup running time: ' + str(endTime - startTime),
         print 'seconds.'
 
