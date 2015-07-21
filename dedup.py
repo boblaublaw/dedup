@@ -8,6 +8,7 @@ import time
 import argparse
 from operator import attrgetter
 from itertools import ifilter, chain
+from collections import defaultdict
 
 # what to export when other scripts import this module:
 __all__ = ["FileObj", "DirObj", "EntryObj", "HashDbObj" ]
@@ -243,7 +244,7 @@ class EntryList:
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
     def __init__(self, allFiles):
-        self.contentHash = {}
+        self.contentHash = defaultdict( lambda: [] )
         self.minDepth = 1
         self.maxDepth = 0
         # we will use this later to count deletions:
@@ -272,10 +273,7 @@ class HashMap:
         hash, and then further appended to a list of other entries
         with the same hash.
         """
-        if entry.hexdigest in self.contentHash:
-            self.contentHash[entry.hexdigest].append(entry)
-        else:
-            self.contentHash[entry.hexdigest] = [ entry ]
+        self.contentHash[entry.hexdigest].append(entry)
         if entry.depth < self.minDepth:
             self.minDepth = entry.depth
 
@@ -539,23 +537,12 @@ class DirObj():
                 # this is a cheat wherein I use a magic value to designate 
                 # empty dirs
                 if self.started_empty():
-                    if '___started_empty___' in startedEmptyReport:
-                        startedEmptyReport['___started_empty___'].append(self)
-                    else:
-                        startedEmptyReport['___started_empty___'] = [ self ]
+                    startedEmptyReport['___started_empty___'].append(self)
                 else:
-                    if '___empty___' in emptyReport:
-                        emptyReport['___empty___'].append(self)
-                    else:
-                        emptyReport['___empty___'] = [ self ]
+                    emptyReport['___empty___'].append(self)
             else:
-                if self.winner.abspathname in dirReport:
-                    # use existing loser list:
-                    loserList = dirReport[self.winner.abspathname]
-                    loserList.append(self)
-                else:
-                    # start a new loser list:
-                    dirReport[self.winner.abspathname] = [ self ]
+                loserList = dirReport[self.winner.abspathname]
+                loserList.append(self)
         else:
             for fileName, fileEntry in self.files.iteritems():
                 fileEntry.generate_reports(reports)
@@ -710,23 +697,15 @@ class FileObj():
         # this is a cheat wherein I use the emptyReport as a list of keys
         # and I disregard the values
         if self.winner is None:
-            if '___empty___' in emptyReport:
-                emptyReport['___empty___'].append(self)
-            else:
-                emptyReport['___empty___'] = [ self ]
+            emptyReport['___empty___'].append(self)
             return
         # just a trivial check to confirm hash matches:
         if self.bytes != self.winner.bytes:
             print '# BIRTHDAY LOTTERY CRISIS!'
             print '# matched hashes and mismatched sizes!'
             sys.exit(-1)
-        if self.winner.abspathname in fileReport:
-            # use existing loserList
-            loserList = fileReport[self.winner.abspathname]
-            loserList.append(self)
-        else:
-            # create a new loserList
-            fileReport[self.winner.abspathname] = [ self ]
+        loserList = fileReport[self.winner.abspathname]
+        loserList.append(self)
 
     # FileObj.prune_empty
     def prune_empty(self):
@@ -929,11 +908,11 @@ if __name__ == '__main__':
                 print '# ' + str(deleted) + ' entries deleted on pass',
                 print str(passCount)
 
-        reports = { 'directories': { },
-                    'directories that are empty after reduction': { },
-                    'directories that started empty': { },
-                    'files': { },
-                    'empty files': { },
+        reports = { 'directories': defaultdict(lambda: []),
+                    'directories that are empty after reduction': defaultdict(lambda: []),
+                    'directories that started empty': defaultdict(lambda: []),
+                    'files': defaultdict(lambda: []),
+                    'empty files': defaultdict(lambda: []),
                     }
 
         for name, e in allFiles.contents.iteritems():
