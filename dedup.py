@@ -20,8 +20,9 @@ __all__ = ["FileObj", "DirObj", "EntryObj", "HashDbObj" ]
 # this algorithm from recognizing them as empty.  we mark them as
 # deletable, even if we do NOT have other copies available:
 DELETE_LIST =    [ "album.dat", "album.dat.lock", "photos.dat",
-               "photos.dat.lock", "Thumbs.db", ".lrprev", "Icon\r",
-                '.dropbox.cache', '.DS_Store' ]
+                "photos.dat.lock", "Thumbs.db", ".lrprev", "Icon\r",
+                ".dropbox.cache", ".DS_Store", "desktop.ini",
+                ".dropbox.attr" ]
 
 # This list describes files and directories we do not want to risk
 # messing with.  If we encounter these, never mark them as deletable.
@@ -33,7 +34,8 @@ BUF_SIZE = 65536
 
 # default globals
 reverseSort=False
-deleteEmptyFiles=False # TODO make this a CLI switch
+deleteEmptyFiles = False    # TODO make this a CLI switch
+deleteEmptyDirs = True      # TODO make this a CLI switch
 verbosity = 0
 db = None
 
@@ -121,13 +123,13 @@ def generate_map_commands(winnerMap, name):
         for loser in losers:
             loserCount = loserCount + 1 
     print '#' * 72
-    print '# ',
+    print '# ' + str(winCount), 
     if loserCount == 0:
         just_a_list = True
-        print str(winCount) + ' loser ' + name
+        print 'loser ' + name
     else:
         just_a_list = False
-        print str(winCount) + ' winner and ' + str(loserCount) + ' loser ' + name
+        print 'winner and ' + str(loserCount) + ' loser ' + name
 
     winnerList.sort()
     for winner in winnerList:
@@ -209,8 +211,9 @@ class EntryList:
         be deleted.
         """
         prevCount = self.count_deleted()
-        for name, e in allFiles.contents.iteritems():
-            e.prune_empty()
+        if deleteEmptyDirs:
+            for name, e in allFiles.contents.iteritems():
+                e.prune_empty()
         return allFiles.count_deleted() - prevCount
 
     # EntryList.walk
@@ -511,7 +514,7 @@ class DirObj():
     # DirObj.generate_reports
     def generate_reports(self, reports):
         """Populates several "reports" that describe duplicated
-        directories, files, as well as empty directories.
+        directories, files, as well as empty directories and files
         """
         dirReport=reports['dirs']
         emptyReport=reports['empty dirs']
@@ -524,7 +527,7 @@ class DirObj():
                     loserList.append(self)
                 else:
                     # start a new loser list:
-                    dirReport[self.winner.abspathname] = [self]
+                    dirReport[self.winner.abspathname] = [ self ]
             else:
                 # this is a cheat wherein I use the emptyReport as a list of keys
                 # and I disregard the values
@@ -586,6 +589,9 @@ class DirObj():
         for d in digests:
             sha1.update(d)
         self.hexdigest = sha1.hexdigest()
+        global deleteEmptyDirs
+        if (len(self.files) + len(self.subdirs)) == 0:
+            self.deleted = deleteEmptyDirs
 
     # DirObj.count_deleted_bytes
     def count_deleted_bytes(self):
@@ -640,10 +646,11 @@ class FileObj():
         self.createTime = statResult.st_ctime
         self.bytes = statResult.st_size
         self.hexdigest = get_hash(self)
+        global deleteEmptyFiles
         if self.bytes == 0:
-            self.deleted = deleteEmptyFiles
+            self.deleted = deleteEmptyFiles or self.ignore
         else:
-            self.deleted = False
+            self.deleted = self.ignore
 
     # FileObj.max_depth
     def max_depth(self):
@@ -677,11 +684,11 @@ class FileObj():
                     loserList.append(self)
                 else:
                     # create a new loserList
-                    fileReport[self.winner.abspathname]=[self]
+                    fileReport[self.winner.abspathname] = [ self ]
             else:
                 # this is a cheat wherein I use the emptyReport as a list of keys
                 # and I disregard the values
-                emptyReport[self.abspathname] = []
+                emptyReport[self.abspathname] = [ ]
 
     # FileObj.prune_empty
     def prune_empty(self):
