@@ -7,7 +7,7 @@ import stat
 import time
 import argparse
 from operator import attrgetter
-from itertools import ifilter
+from itertools import ifilter, chain
 
 # what to export when other scripts import this module:
 __all__ = ["FileObj", "DirObj", "EntryObj", "HashDbObj" ]
@@ -554,28 +554,20 @@ class DirObj():
 
     # DirObj.started_empty
     def started_empty(self):
-        """Checks if the dir was truly empty when the program was
-        invoked.
+        """Checks if the dir was empty when the program was
+        invoked.  If we see ignored items, we ignore them.
         """
-        return (len(self.files) + len(self.subdirs)) == 0
-            
-        for fileName, fileEntry in self.files.iteritems():
-            if not fileEntry.deleted and not fileEntry.ignore:
+        for name, entry in chain(self.files.iteritems(), self.subdirs.iteritems()):
+            if not entry.ignore:
                 return False
-
-        for dirName, subdir in self.subdirs.iteritems():
-            if (not subdir.deleted
-                    and not subdir.is_empty()
-                    and not subdir.ignore):
-                return False
-
-        return True
+        return True;
 
     # DirObj.is_empty
     def is_empty(self):
-        """Checks if the dir is empty, ignoring items marked as deleted
-        or ignored.  (In other words, ignored items won't protect a 
-        directory from being marked for deletion.)
+        """Checks if the dir is currented marked as empty, ignoring 
+        items marked as deleted or ignored.  (In other words, 
+        ignored items won't protect a directory from being marked 
+        for deletion.)
         """
         for fileName, fileEntry in self.files.iteritems():
             if not fileEntry.deleted and not fileEntry.ignore:
