@@ -208,20 +208,6 @@ class EntryList:
             for item in topLevelItem.walk():
                 yield item
 
-    # EntryList.generate_commands
-    def generate_commands(self):
-        """Generates delete commands to dedup all contents"""
-
-        selectDirMap={}
-        selectFileMap={}
-        emptyMap={}
-
-        for name, e in self.contents.iteritems():
-            e.generate_report(selectDirMap, selectFileMap, emptyMap)
-
-        generate_map_commands(selectDirMap, 'dirs')
-        generate_map_commands(selectFileMap, 'files')
-        generate_map_commands(emptyMap, 'empty dirs')
 
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
@@ -314,6 +300,10 @@ class HashMap:
         if isinstance(winner, DirObj) and winner.is_empty():
             # we trim empty directories using DirObj.prune_empty()
             # because it produces less confusing output
+            return
+
+        if isinstance(winner, FileObj) and winner.bytes == 0:
+            # we also trim empty files
             return
 
         losers = []
@@ -507,33 +497,32 @@ class DirObj():
         for name, f in self.files.iteritems():
             f.delete()
 
-    # DirObj.generate_report
-    def generate_report(self, selectDirMap, selectFileMap, emptyMap):
-        """Generates delete commands to dedup all contents of this
-        directory.
+    # DirObj.generate_reports
+    def generate_reports(self, reports):
+        """Populates several "reports" that describe duplicated
+        directories, files, as well as empty directories.
         """
+        dirReport=reports['dirs']
+        emptyReport=reports['empty dirs']
+
         if self.deleted:
             if self.winner is not None:
-                if self.winner.abspathname in selectDirMap:
+                if self.winner.abspathname in dirReport:
                     # use existing loser list:
-                    loserList = selectDirMap[self.winner.abspathname]
+                    loserList = dirReport[self.winner.abspathname]
                     loserList.append(self.abspathname)
                 else:
                     # start a new loser list:
-                    selectDirMap[self.winner.abspathname] = [self.abspathname]
+                    dirReport[self.winner.abspathname] = [self.abspathname]
             else:
-                # this is a cheat wherein I use the emptyMap as a list of keys
+                # this is a cheat wherein I use the emptyReport as a list of keys
                 # and I disregard the values
-                emptyMap[self.abspathname]=[]
+                emptyReport[self.abspathname]=[]
         else:
             for fileName, fileEntry in self.files.iteritems():
-                fileEntry.generate_report(selectDirMap,
-                                            selectFileMap,
-                                            emptyMap)
+                fileEntry.generate_reports(reports)
             for dirName, subdir in self.subdirs.iteritems():
-                subdir.generate_report(selectDirMap,
-                                            selectFileMap,
-                                            emptyMap)
+                subdir.generate_reports(reports)
 
     # DirObj.is_empty
     def is_empty(self):
@@ -621,7 +610,6 @@ class FileObj():
         self.name = name;
         self.winner = None
         self.parent = parent
-        self.deleted = False
         self.weightAdjust = weightAdjust
         self.ignore = self.name in DELETE_LIST
 
@@ -641,6 +629,10 @@ class FileObj():
         self.createTime = statResult.st_ctime
         self.bytes = statResult.st_size
         self.hexdigest = get_hash(self)
+        if self.bytes == 0:
+            self.deleted = True
+        else:
+            self.deleted = False
 
     # FileObj.max_depth
     def max_depth(self):
@@ -656,8 +648,10 @@ class FileObj():
         """Mark for deletion"""
         self.deleted = True
 
-    # FileObj.generate_report
-    def generate_report(self, selectDirMap, selectFileMap, emptyMap):
+    # FileObj.generate_reports
+    def generate_reports(self, reports):
+        fileReport=reports['files']
+        emptyReport=reports['empty files']
         """Generates delete commands to dedup all contents"""
         if self.deleted and not self.ignore:
             if self.winner is not None:
@@ -666,17 +660,17 @@ class FileObj():
                     print '# BIRTHDAY LOTTERY CRISIS!'
                     print '# matched hashes and mismatched sizes!'
                     sys.exit(-1)
-                if self.winner.abspathname in selectFileMap:
+                if self.winner.abspathname in fileReport:
                     # use existing loserList
-                    loserList = selectFileMap[self.winner.abspathname]
+                    loserList = fileReport[self.winner.abspathname]
                     loserList.append(self.abspathname)
                 else:
                     # create a new loserList
-                    selectFileMap[self.winner.abspathname]=[self.abspathname]
+                    fileReport[self.winner.abspathname]=[self.abspathname]
             else:
-                # this is a cheat wherein I use the emptyMap as a list of keys
+                # this is a cheat wherein I use the emptyReport as a list of keys
                 # and I disregard the values
-                emptyMap[self.abspathname] = []
+                emptyReport[self.abspathname] = []
 
     # FileObj.prune_empty
     def prune_empty(self):
@@ -863,7 +857,17 @@ if __name__ == '__main__':
                 print '# ' + str(deleted) + ' entries deleted on pass',
                 print str(passCount)
 
-        allFiles.generate_commands()
+        reports = { 'dirs': {},
+                    'files': {},
+                    'empty dirs': {},
+                    'empty files': {},
+                    }
+
+        for name, e in allFiles.contents.iteritems():
+            e.generate_reports(reports)
+
+        for reportName, report in reports.iteritems():
+            generate_map_commands(report, reportName)
 
         #for e in allFiles.walk():
         #    e.display(False,False)
