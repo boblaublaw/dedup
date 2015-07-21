@@ -133,32 +133,22 @@ def generate_map_header(winnerMap, name):
             loserBytes = loserBytes + loser.count_bytes(deleted=True)
     print "\n" + '#' * 72
     print '# ' + str(winCount), 
-    if loserCount == 0:
-        just_a_list = True
-        print name
-    else:
-        just_a_list = False
-        print 'winner and ' + str(loserCount) + ' loser ' + name,
-        print 'will make ' + sizeof_fmt(loserBytes) + ' redundant'
-    return just_a_list
+    print 'winner and ' + str(loserCount) + ' loser ' + name,
+    print 'will make ' + sizeof_fmt(loserBytes) + ' redundant'
 
 def generate_map_commands(winnerMap, name):
     winnerList = winnerMap.keys()
     if len(winnerList) == 0:
         return
-    just_a_list = generate_map_header(winnerMap, name)
+    generate_map_header(winnerMap, name)
 
     winnerList.sort()
-    if just_a_list:
-        for winner in winnerList:
-            generate_delete(winner)
-    else:
-        for winner in winnerList:
-            losers = winnerMap[winner]
-            print "#      '" + winner + "'" 
-            for loser in losers:
-                generate_delete(loser.abspathname)
-            print
+    for winner in winnerList:
+        losers = winnerMap[winner]
+        print "#      '" + winner + "'" 
+        for loser in losers:
+            generate_delete(loser.abspathname)
+        print
 
 
 class EntryList:
@@ -347,11 +337,9 @@ class HashMap:
             # we also trim empty files
             return
 
-        losers = []
         # once we have a winner, mark all the other candidates as losers
         for candidate in candidates:
             if candidate != winner:
-                losers.append(candidate)
                 if not candidate.deleted:
                     candidate.delete()
                     if verbosity > 0:
@@ -361,8 +349,6 @@ class HashMap:
                             print '# file "' + candidate.abspathname,
                         print '" covered by "' + winner.abspathname + '"'
                     candidate.winner = winner
-
-        winner.losers = losers
 
     # HashMap.resolve
     def resolve(self):
@@ -549,7 +535,20 @@ class DirObj():
         startedEmptyReport = reports['directories that started empty']
 
         if self.deleted:
-            if self.winner is not None:
+            if self.winner is None:
+                # this is a cheat wherein I use a magic value to designate 
+                # empty dirs
+                if self.started_empty():
+                    if '___started_empty___' in startedEmptyReport:
+                        startedEmptyReport['___started_empty___'].append(self)
+                    else:
+                        startedEmptyReport['___started_empty___'] = [ self ]
+                else:
+                    if '___empty___' in emptyReport:
+                        emptyReport['___empty___'].append(self)
+                    else:
+                        emptyReport['___empty___'] = [ self ]
+            else:
                 if self.winner.abspathname in dirReport:
                     # use existing loser list:
                     loserList = dirReport[self.winner.abspathname]
@@ -557,13 +556,6 @@ class DirObj():
                 else:
                     # start a new loser list:
                     dirReport[self.winner.abspathname] = [ self ]
-            else:
-                # this is a cheat wherein I use the emptyReport as a list of keys
-                # and I disregard the values
-                if self.started_empty():
-                    startedEmptyReport[self.abspathname]=[]
-                else:
-                    emptyReport[self.abspathname]=[]
         else:
             for fileName, fileEntry in self.files.iteritems():
                 fileEntry.generate_reports(reports)
@@ -718,7 +710,10 @@ class FileObj():
         # this is a cheat wherein I use the emptyReport as a list of keys
         # and I disregard the values
         if self.winner is None:
-            emptyReport[self.abspathname] = [ ]
+            if '___empty___' in emptyReport:
+                emptyReport['___empty___'].append(self)
+            else:
+                emptyReport['___empty___'] = [ self ]
             return
         # just a trivial check to confirm hash matches:
         if self.bytes != self.winner.bytes:
@@ -865,6 +860,21 @@ class HashDbObj():
         print '# Database clean complete after ' + str(endTime - startTime),
         print 'seconds.\n'
 
+def synthesize_report(report):
+    newReport = []
+    for winnerName, loserList in report.iteritems():
+        loserCount = len(loserList)
+        loserBytes = 0
+        if loserCount > 0:
+            loserBytes=loserList[0].count_bytes(True)
+            loserList.sort(key=lambda x: x.abspathname)
+        totalLoserBytes=loserBytes * loserCount
+        newReport.append( [ winnerName, loserCount, totalLoserBytes, loserList ] )
+
+def synthesize_reports(reports):
+    for reportName, report in reports.iteritems():
+        report=synthesize_report(report)
+
 if __name__ == '__main__':
     startTime = time.time()
     desc="generate commands to eliminate redundant files and directories"
@@ -919,15 +929,17 @@ if __name__ == '__main__':
                 print '# ' + str(deleted) + ' entries deleted on pass',
                 print str(passCount)
 
-        reports = { 'directories': {},
-                    'files': {},
-                    'directories that are empty after reduction': {},
-                    'directories that started empty': {},
-                    'empty files': {},
+        reports = { 'directories': { },
+                    'directories that are empty after reduction': { },
+                    'directories that started empty': { },
+                    'files': { },
+                    'empty files': { },
                     }
 
         for name, e in allFiles.contents.iteritems():
             e.generate_reports(reports)
+
+        synthesize_reports(reports)
 
         for reportName, report in reports.iteritems():
             generate_map_commands(report, reportName)
