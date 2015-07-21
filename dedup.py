@@ -137,7 +137,7 @@ def generate_map_commands(winnerMap, name):
             losers = winnerMap[winner]
             print "#      '" + winner + "'" 
             for loser in losers:
-                generate_delete(loser)
+                generate_delete(loser.abspathname)
             print
 
 class EntryList:
@@ -521,10 +521,10 @@ class DirObj():
                 if self.winner.abspathname in dirReport:
                     # use existing loser list:
                     loserList = dirReport[self.winner.abspathname]
-                    loserList.append(self.abspathname)
+                    loserList.append(self)
                 else:
                     # start a new loser list:
-                    dirReport[self.winner.abspathname] = [self.abspathname]
+                    dirReport[self.winner.abspathname] = [self]
             else:
                 # this is a cheat wherein I use the emptyReport as a list of keys
                 # and I disregard the values
@@ -674,10 +674,10 @@ class FileObj():
                 if self.winner.abspathname in fileReport:
                     # use existing loserList
                     loserList = fileReport[self.winner.abspathname]
-                    loserList.append(self.abspathname)
+                    loserList.append(self)
                 else:
                     # create a new loserList
-                    fileReport[self.winner.abspathname]=[self.abspathname]
+                    fileReport[self.winner.abspathname]=[self]
             else:
                 # this is a cheat wherein I use the emptyReport as a list of keys
                 # and I disregard the values
