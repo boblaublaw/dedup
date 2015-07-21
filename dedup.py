@@ -44,7 +44,8 @@ deleteEmptyDirs = True      # TODO make this a CLI switch
 verbosity = 0
 db = None
 
-def sizeof_fmt(num, suffix='B'):
+def sizeof_fmt(num, suffix='B')r
+    """helper function found on stackoverflow"""
     for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
         if abs(num) < 1024.0:
             return "%3.1f %s%s" % (num, unit, suffix)
@@ -127,10 +128,8 @@ def synthesize_report(report):
     allMarkedBytes = 0
     for winnerName, loserList in report.iteritems():
         markedCount = len(loserList)
-        loserBytes = 0
         totalMarkedBytes = 0
         if markedCount > 0:
-            loserBytes = loserList[0].count_bytes(True)
             loserList.sort(key=lambda x: x.abspathname)
             for loser in loserList:
                 totalMarkedBytes = totalMarkedBytes + loser.count_bytes(True)
@@ -170,9 +169,9 @@ def generate_map_commands(report):
     markedCount = report['markedCount']
 
     print "\n" + '#' * 72
-    print '# ' + str(winCount),
-    print 'winner and ' + str(markedCount) + ' loser ' + reportName,
-    print 'will make ' + sizeof_fmt(totalMarkedBytes) + ' of file data redundant'
+    print '# ' + reportName + ': ' + str(winCount),
+    print 'to keep and ' + str(markedCount) + ' to remove'
+    print 'This section could make ' + sizeof_fmt(totalMarkedBytes) + ' of file data redundant'
 
     for winner in winnerList:
         print "# This subsection could save " + sizeof_fmt(winner['totalMarkedBytes'])
@@ -264,13 +263,6 @@ class EntryList:
                 e.prune_empty()
         return allFiles.count_deleted() - prevCount
 
-    # EntryList.walk
-    def walk(self):
-        for name, topLevelItem in allFiles.contents.iteritems():
-            for item in topLevelItem.walk():
-                yield item
-
-
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
     def __init__(self, allFiles):
@@ -306,13 +298,6 @@ class HashMap:
         self.contentHash[entry.hexdigest].append(entry)
         if entry.depth < self.minDepth:
             self.minDepth = entry.depth
-
-    # HashMap.display
-    def display(self):
-        """Generate a human readable report."""
-        for hashval, list in self.contentHash.iteritems():
-            for entry in list:
-                entry.display(False, False)
 
     # HashMap.prune
     def prune(self):
@@ -476,22 +461,6 @@ class DirObj():
         else:
             return md
 
-    # DirObj.display
-    def display(self, contents=False, recurse=False):
-        """Generate a human readable report.
-                'contents' controls if files are displayed
-                'recurse' controls if subdirs are displayed
-        """
-        if recurse:
-            for name, entry in self.subdirs.iteritems():
-                entry.display(contents, recurse)
-        if contents:
-            for name, entry in self.files.iteritems():
-                entry.display(contents, recurse);
-        print '# Directory\t' + str(self.deleted) + '\t',
-        print str(self.depth) + '\t',
-        print self.hexdigest + ' ' + self.abspathname
-
     # DirObj.place_dir
     def place_dir(self, inputDirName, weightAdjust):
         """Matches a pathname to a directory structure and returns a
@@ -533,16 +502,6 @@ class DirObj():
                 yield dirEntry
         if not topdown:
             yield self
-
-    # DirObj.walk
-    def walk(self):
-        """A generator which traverses files and subdirs"""
-        for name, subdir in self.subdirs.iteritems():
-            for e in subdir.walk():
-                yield e
-        for name, fileEntry in self.files.iteritems():
-            yield fileEntry
-        yield self
 
     # DirObj.delete
     def delete(self):
@@ -707,11 +666,6 @@ class FileObj():
     def max_depth(self):
         return self.depth
 
-    # FileObj.walk
-    def walk(self):
-        """Used to fit into other generators"""
-        yield self
-
     # FileObj.delete
     def delete(self):
         """Mark for deletion"""
@@ -743,13 +697,6 @@ class FileObj():
         the deleted
         """
         return False            # can't prune a file
-
-    # FileObj.display
-    def display(self, contents=False, recurse=False):
-        """Generate a human readable report."""
-        print '# File\t\t' + str(self.deleted) + '\t',
-        print str(self.depth) + '\t',
-        print self.hexdigest + ' ' + self.pathname
 
     # FileObj.count_bytes
     def count_bytes(self, deleted=False):
@@ -941,11 +888,9 @@ if __name__ == '__main__':
         for report in reportLists:
             generate_map_commands(report)
 
-        #for e in allFiles.walk():
-        #    e.display(False,False)
         endTime = time.time()
         print '\n# total bytes marked for deletion (not including',
-        print 'directory files): ' + str(allFiles.count_bytes(deleted=True))
+        print 'directory files): ' + sizeof_fmt(allFiles.count_bytes(deleted=True))
         print '# total dedup running time: ' + str(endTime - startTime),
         print 'seconds.'
 
