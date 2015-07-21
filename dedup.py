@@ -36,9 +36,9 @@ DO_NOT_DELETE_LIST = []
 BUF_SIZE = 65536
 
 # default globals
-sortResultsBy='totalLoserBytes' # TODO make a CLI switch
+sortResultsBy='totalMarkedBytes' # TODO make a CLI switch
 reverseResults=True             # TODO make a CLI switch
-reverseSort=False
+reverseSelection=False
 deleteEmptyFiles = True    # TODO make this a CLI switch
 deleteEmptyDirs = True      # TODO make this a CLI switch
 verbosity = 0
@@ -124,35 +124,35 @@ def check_level(pathname):
 
 def synthesize_report(report):
     winnerList = []
-    allLoserBytes = 0
+    allMarkedBytes = 0
     for winnerName, loserList in report.iteritems():
-        loserCount = len(loserList)
+        markedCount = len(loserList)
         loserBytes = 0
-        totalLoserBytes = 0
-        if loserCount > 0:
+        totalMarkedBytes = 0
+        if markedCount > 0:
             loserBytes = loserList[0].count_bytes(True)
             loserList.sort(key=lambda x: x.abspathname)
             for loser in loserList:
-                totalLoserBytes = totalLoserBytes + loser.count_bytes(True)
-        allLoserBytes = allLoserBytes + totalLoserBytes
+                totalMarkedBytes = totalMarkedBytes + loser.count_bytes(True)
+        allMarkedBytes = allMarkedBytes + totalMarkedBytes
         newResult = {}
         newResult['winnerName'] = winnerName
-        newResult['loserCount'] = loserCount
-        newResult['totalLoserBytes'] = totalLoserBytes
+        newResult['markedCount'] = markedCount
+        newResult['totalMarkedBytes'] = totalMarkedBytes
         newResult['loserList'] = loserList
         winnerList.append( newResult )
 
     # set the order to present each result from this report:
     global sortResultsBy, reverseResults
     winnerList.sort(key=lambda x: x[sortResultsBy], reverse=reverseResults)
-    return winnerList, allLoserBytes, loserCount
+    return winnerList, allMarkedBytes, markedCount
 
 def synthesize_reports(reportMap):
     reportList=[]
     for reportName, report in reportMap.iteritems():
         newReport={}
         newReport['reportName']=reportName
-        newReport['winnerList'], newReport['totalLoserBytes'], newReport['loserCount'] = synthesize_report(report)
+        newReport['winnerList'], newReport['totalMarkedBytes'], newReport['markedCount'] = synthesize_report(report)
         reportList.append(newReport)
     
     global sortResultsBy, reverseResults
@@ -166,16 +166,16 @@ def generate_map_commands(report):
     if winCount == 0:
         return
     reportName = report['reportName']
-    totalLoserBytes = report['totalLoserBytes']
-    loserCount = report['loserCount']
+    totalMarkedBytes = report['totalMarkedBytes']
+    markedCount = report['markedCount']
 
     print "\n" + '#' * 72
     print '# ' + str(winCount),
-    print 'winner and ' + str(loserCount) + ' loser ' + reportName,
-    print 'will make ' + sizeof_fmt(totalLoserBytes) + ' of file data redundant'
+    print 'winner and ' + str(markedCount) + ' loser ' + reportName,
+    print 'will make ' + sizeof_fmt(totalMarkedBytes) + ' of file data redundant'
 
     for winner in winnerList:
-        print "# This subsection could save " + sizeof_fmt(winner['totalLoserBytes'])
+        print "# This subsection could save " + sizeof_fmt(winner['totalMarkedBytes'])
         print "#      '" + winner['winnerName'] + "'" 
         for loser in winner['loserList']:
             generate_delete(loser.abspathname)
@@ -343,17 +343,17 @@ class HashMap:
         identical contents (as determined elsewhere) to determine which of
         the candidates is the "keeper" (or winner).  The other candidates
         are designated losers.  The winner is selected by comparing the
-        depths of the candidates.  If reverseSort is true, the deepest
+        depths of the candidates.  If reverseSelection is true, the deepest
         candidate is chosen, else the shallowest is chosen.  In the case
         of a tie, the length of the full path is compared.
         """
         if len(candidates) == 0:
             return
 
-        global reverseSort
+        global reverseSelection
         candidates.sort(
             key=attrgetter('depth','abspathnamelen','abspathname'), 
-            reverse=reverseSort)
+            reverse=reverseSelection)
         winner = candidates.pop(0)
 
         if isinstance(winner, DirObj) and winner.is_empty():
@@ -397,7 +397,7 @@ class HashMap:
             del self.contentHash[entry]
 
         # delete the directories first, in order of (de/in)creasing depth,
-        # depending on the reverseSort setting.
+        # depending on the reverseSelection setting.
         #
         # This approach isn't strictly required but it results in fewer
         # calls to this function if we delete leaf nodes first, as it will
@@ -405,8 +405,8 @@ class HashMap:
         # resolve().
 
         depths=range(self.minDepth-1,self.maxDepth+1)
-        global reverseSort
-        if reverseSort:
+        global reverseSelection
+        if reverseSelection:
             depths.reverse()
         if verbosity > 0:
             print '# checking candidates in dir depth order:',
@@ -416,7 +416,7 @@ class HashMap:
             #print '# checking depth ' + str(depthFilter)
             for hashval, candidates in ifilter(lambda x: 
                     member_is_type(x,DirObj),self.contentHash.iteritems()):
-                if reverseSort:
+                if reverseSelection:
                     maybes = [x for x in candidates if x.depth < depthFilter ]
                 else:
                     maybes = [x for x in candidates if x.depth > depthFilter ]
@@ -881,12 +881,12 @@ if __name__ == '__main__':
                     help="clean hash cache instead of normal operation")
     parser.add_argument("-s", "--stagger-paths", action="store_true",
                     help="always prefer files in argument order")
-    parser.add_argument("-r", "--reverse-sort", action="store_true",
+    parser.add_argument("-r", "--reverse-selection", action="store_true",
                     help="reverse the dir/file selection choices")
     args, paths = parser.parse_known_args()
 
     verbosity = args.verbosity
-    reverseSort = args.reverse_sort
+    reverseSelection = args.reverse_selection
 
     if args.database is not None:
         db=HashDbObj(args.database)
