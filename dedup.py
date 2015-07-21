@@ -266,29 +266,6 @@ class HashMap:
             for entry in list:
                 entry.display(False, False)
 
-    # HashMap.delete
-    def delete(self, entry):
-        """Marks an entry as deleted then remove it from the HashMap"""
-
-        entry.delete()
-
-        # remove the entry from the hashmap
-        list = self.contentHash[entry.hexdigest]
-        newlist = []
-        for e in list:
-            if e != entry:
-                newlist.append(e)
-
-        # if there are no more entries for this hashval, remove
-        # it from the dictionary m
-        if len(newlist):
-            self.contentHash[entry.hexdigest] = newlist
-        else:
-            del self.contentHash[entry.hexdigest]
-
-        # also remove all the deleted children from the hashmap
-        self.prune()
-
     # HashMap.prune
     def prune(self):
         """Removes deleted objects from the HashMap"""
@@ -318,10 +295,7 @@ class HashMap:
         candidate is chosen, else the shallowest is chosen.  In the case
         of a tie, the length of the full path is compared.
         """
-        #newlist = sorted(candidates, key=lambda x: x.depth, chooseDeeper)
-
         if len(candidates) == 0:
-            # nothing to resolve (at this depth)
             return
 
         global chooseDeeper
@@ -374,7 +348,7 @@ class HashMap:
         if chooseDeeper:
             depths.reverse()
         if verbosity > 0:
-            print '# checking candidates in depth order:',
+            print '# checking candidates in dir depth order:',
             print str(depths)
 
         for depthFilter in depths:
@@ -857,7 +831,7 @@ if __name__ == '__main__':
         deleted = 1
         # while things are still being removed, keep working:
         while deleted > 0:
-
+            sys.stdout.flush()
             h = HashMap(allFiles)
             deletedDirectories = allFiles.prune_empty()
 
