@@ -305,7 +305,9 @@ class HashMap:
             return
 
         global chooseDeeper
-        candidates.sort(key=attrgetter('depth','abspathnamelen'), reverse=chooseDeeper)
+        candidates.sort(
+            key=attrgetter('depth','abspathnamelen','abspathname'), 
+            reverse=chooseDeeper)
         winner = candidates.pop(0)
 
         if isinstance(winner, DirObj) and winner.is_empty():
@@ -368,12 +370,10 @@ class HashMap:
                     maybes = [x for x in candidates if x.depth > depthFilter ]
                 if len(maybes) > 0:
                     self.resolve_candidates(maybes)
-
             self.prune()
 
         for hashval, candidates in ifilter(lambda x: member_is_type(x,FileObj),self.contentHash.iteritems()):
             self.resolve_candidates(candidates)
-
         self.prune()
 
         return self.allFiles.count_deleted() - prevCount
