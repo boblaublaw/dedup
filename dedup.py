@@ -174,11 +174,11 @@ def generate_map_commands(report):
     print "\n" + '#' * 72
     if reportName in emptyReportNames:
         print '# ' + reportName + ': ' + str(markedCount) + ' to remove'
-        print '# This section could make ' + sizeof_fmt(totalMarkedBytes) + ' of file data redundant'
+        print '# This section could make ' + sizeof_fmt(totalMarkedBytes) + ' of file data redundant\n'
     else:
         print '# ' + reportName + ': ' + str(winCount),
         print 'to keep and ' + str(markedCount) + ' to remove'
-        print '# This section could make ' + sizeof_fmt(totalMarkedBytes) + ' of file data redundant'
+        print '# This section could make ' + sizeof_fmt(totalMarkedBytes) + ' of file data redundant\n'
 
     for winner in winnerList:
         print "# This subsection could save " + sizeof_fmt(winner['totalMarkedBytes'])
