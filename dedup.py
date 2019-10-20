@@ -20,12 +20,24 @@ __all__ = ["FileObj", "DirObj", "EntryObj", "HashDbObj" ]
 # This list represents files that may linger in directories preventing
 # this algorithm from recognizing them as empty.  we mark them as
 # deletable, even if we do NOT have other copies available:
-DELETE_FILE_LIST =    [ "album.dat", "album.dat.lock", "photos.dat",
-                "photos.dat.lock", "Thumbs.db", ".lrprev", "Icon\r",
-                ".DS_Store", "desktop.ini", ".dropbox.attr", 
-                ".typeAttributes.dict" ]
+DELETE_FILE_LIST =    [
+    "album.dat",
+    "album.dat.lock",
+    "photos.dat",
+    "photos.dat.lock",
+    "Thumbs.db",
+    ".lrprev",
+    "Icon\r",
+    ".DS_Store",
+    "desktop.ini",
+    ".dropbox.attr",
+    ".typeAttributes.dict" ]
 
-DELETE_DIR_LIST = [ ".git", ".svn", ".dropbox.cache", "__MACOSX" ]
+DELETE_DIR_LIST = [
+    ".git",
+    ".svn",
+    ".dropbox.cache",
+    "__MACOSX" ]
  
 # This list describes files and directories we do not want to risk
 # messing with.  If we encounter these, never mark them as deletable.
@@ -46,7 +58,8 @@ db = None
 
 def sizeof_fmt(num, suffix='B'):
     """helper function found on stackoverflow"""
-    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+    prefixlist = ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']
+    for unit in prefixlist:
         if abs(num) < 1024.0:
             return "%3.1f %s%s" % (num, unit, suffix)
         num /= 1024.0
@@ -62,6 +75,10 @@ def member_is_type(tuple, type):
 def compute_hash(pathname):
     """reads a file and computes a SHA1 hash"""
     # open and read the file
+
+    # TODO - parameterize this to optionally check less 
+    #   than the whole file.
+
     sha1 = hashlib.sha1()
     with open(pathname, 'rb') as f:
         while True:
@@ -198,7 +215,7 @@ class EntryList:
         # walk arguments adding files and directories
         for entry in arguments:
             # strip trailing slashes, they are not needed
-            entry = entry.rstrip('/')
+            entry = entry.rstrip(os.path.sep)
 
             # check if a weight has been provided for this argument
             weightAdjust, entry = check_level(entry)
@@ -230,9 +247,10 @@ class EntryList:
                         continue
 
                     for fname in fileList:
-                        if issocket(dirEntry.abspathname + '/' + fname):
+                        pname = os.path.join(dirEntry.abspathname, fname)
+                        if issocket(pname):
                             print '# Skipping a socket',
-                            print dirEntry.abspathname + '/' + fname
+                            print pname
                         elif os.path.basename(fname) not in DELETE_FILE_LIST:
                             newFile = FileObj(fname,
                                             parent = dirEntry,
@@ -437,7 +455,7 @@ class DirObj():
         self.weightAdjust = weightAdjust
         self.parent = parent
         ancestry = self.get_lineage()
-        self.pathname = '/'.join(ancestry)
+        self.pathname = os.path.join(*ancestry)
         self.abspathname = os.path.abspath(self.pathname)
         self.abspathnamelen = len(self.abspathname)
         self.depth = len(ancestry) + self.weightAdjust
@@ -448,7 +466,7 @@ class DirObj():
         parents.
         """
         if self.parent is None:
-            return self.name.split('/')
+            return self.name.split(os.path.sep)
         ancestry = self.parent.get_lineage()
         ancestry.append(self.name)
         return ancestry
@@ -474,8 +492,8 @@ class DirObj():
         """Matches a pathname to a directory structure and returns a
         DirObj object.
         """
-        inputDirList = inputDirName.split('/')
-        nameList = self.name.split('/')
+        inputDirList = inputDirName.split(os.path.sep)
+        nameList = self.name.split(os.path.sep)
 
         while (len(inputDirList) and len(nameList)):
             x = inputDirList.pop(0)
@@ -491,14 +509,14 @@ class DirObj():
 
         nextDirName = inputDirList[0]
         if nextDirName in self.subdirs:
-            tmpName='/'.join(inputDirList)
+            tmpName= os.path.join(*inputDirList)
             tmpSub = self.subdirs[nextDirName]
             return tmpSub.place_dir(tmpName, weightAdjust)
 
         #print "did not find " + nextDirName + " in " + self.name
         nextDir = DirObj(nextDirName, weightAdjust, self)
         self.subdirs[nextDirName]=nextDir
-        return nextDir.place_dir('/'.join(inputDirList), weightAdjust)
+        return nextDir.place_dir(os.path.join(*inputDirList), weightAdjust)
 
     # DirObj.dirwalk
     def dirwalk(self, topdown=False):
@@ -651,7 +669,8 @@ class FileObj():
 
         if self.parent is not None:
             ancestry = self.parent.get_lineage()
-            self.pathname = '/'.join(ancestry) + '/' + self.name
+            ancestry.append(self.name)
+            self.pathname = os.path.join(*ancestry)
             self.depth = len(ancestry) + self.weightAdjust
         else:
             self.pathname = self.name
