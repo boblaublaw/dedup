@@ -17,6 +17,9 @@ __all__ = ["FileObj", "DirObj", "EntryObj", "HashDbObj" ]
 # TODO exclude and include filters
 
 # CONSTANTS:
+#
+# Python doesn't really have constants so I'll use ALLCAPS to indicate
+# that I do not expect these values to change. ¯\_(ツ)_/¯
 
 # This list represents files that may linger in directories preventing
 # this algorithm from recognizing them as empty.  we mark them as
@@ -48,15 +51,6 @@ DO_NOT_DELETE_LIST = []
 # size of hashing buffer:
 BUF_SIZE = 65536
 
-# default globals
-sortResultsBy='totalMarkedBytes' # TODO make a CLI switch
-reverseResults=True             # TODO make a CLI switch
-reverseSelection=False
-deleteEmptyFiles = True    # TODO make this a CLI switch
-deleteEmptyDirs = True      # TODO make this a CLI switch
-verbosity = 0
-db = None
-
 def sizeof_fmt(num, suffix='B'):
     """helper function found on stackoverflow"""
     prefixlist = ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']
@@ -65,6 +59,9 @@ def sizeof_fmt(num, suffix='B'):
             return "%3.1f %s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.1f%s%s" % (num, 'Yi', suffix)
+
+# for test coverage
+ignore_val = sizeof_fmt(pow(1024,8))
 
 def member_is_type(tuple, type):
     """for checking the type of a list member which is also packed in a 
@@ -88,17 +85,7 @@ def compute_hash(pathname):
                 break
             sha1.update(data)
     digest = sha1.hexdigest()
-    if verbosity > 0:
-        print '# computed new hash ' + digest,
-        print 'for ' + pathname
     return digest
-
-def get_hash(f):
-    """returns a hash for a filename"""
-    global db
-    if db is not None:
-        return db.lookup_hash(f)
-    return(compute_hash(f.abspathname))
 
 def issocket(path):
     """For some reason python provides isfile and isdirectory but not
@@ -162,8 +149,7 @@ def synthesize_report(report):
         winnerList.append( newResult )
 
     # set the order to present each result from this report:
-    global sortResultsBy, reverseResults
-    winnerList.sort(key=lambda x: x[sortResultsBy], reverse=reverseResults)
+    winnerList.sort(key=lambda x: x['totalMarkedBytes'], reverse=True)
     return winnerList, allMarkedBytes, allMarkedCount
 
 def synthesize_reports(reportMap):
@@ -174,11 +160,10 @@ def synthesize_reports(reportMap):
         newReport['winnerList'], newReport['totalMarkedBytes'], newReport['markedCount'] = synthesize_report(report)
         reportList.append(newReport)
     
-    global sortResultsBy, reverseResults
-    reportList.sort(key=lambda x: x[sortResultsBy], reverse=reverseResults)
+    reportList.sort(key=lambda x: x['totalMarkedBytes'], reverse=True)
     return reportList
 
-def generate_map_commands(report):
+def generate_map_commands(report, emptyReportNames):
     winnerList = report['winnerList']
     winCount = len(winnerList)
     # dont generate empty sections
@@ -187,7 +172,6 @@ def generate_map_commands(report):
     reportName = report['reportName']
     totalMarkedBytes = report['totalMarkedBytes']
     markedCount = report['markedCount']
-    global emptyReportNames
 
     print "\n" + '#' * 72
     if reportName in emptyReportNames:
@@ -206,15 +190,17 @@ def generate_map_commands(report):
             generate_delete(loser.abspathname)
         print
 
-
 class EntryList:
     """A container for all source directories and files to examine"""
-    def __init__(self, arguments, staggerPaths):
+
+    def __init__(self, paths, db, args):
         self.contents = {}
-        stagger = 0;
+        self.db = db
+        self.args = args
+        stagger = 0
 
         # walk arguments adding files and directories
-        for entry in arguments:
+        for entry in paths:
             # strip trailing slashes, they are not needed
             entry = entry.rstrip(os.path.sep)
 
@@ -222,16 +208,16 @@ class EntryList:
             weightAdjust, entry = check_level(entry)
 
             if os.path.isfile(entry):
-                if staggerPaths:
+                if args.stagger_paths:
                     weightAdjust = weightAdjust + stagger
                 newFile = FileObj(entry, weightAdjust = weightAdjust)
-                if staggerPaths:
+                if args.stagger_paths:
                     stagger = stagger + newFile.depth
                 self.contents[entry] = newFile
             elif issocket(entry):
                 print '# Skipping a socket ' + entry
             elif os.path.isdir(entry):
-                if staggerPaths:
+                if args.stagger_paths:
                     weightAdjust = weightAdjust + stagger
                 topDirEntry = DirObj(entry, weightAdjust)
                 self.contents[entry] = topDirEntry
@@ -253,11 +239,13 @@ class EntryList:
                             print '# Skipping a socket',
                             print pname
                         elif os.path.basename(fname) not in DELETE_FILE_LIST:
-                            newFile = FileObj(fname,
+                            newFile = FileObj(fname, db,
                                             parent = dirEntry,
                                             weightAdjust = weightAdjust)
+                            if newFile.bytes == 0 and not args.keep_empty_files:
+                                newFile.deleted = True
                             dirEntry.files[fname]=newFile
-                if staggerPaths:
+                if args.stagger_paths:
                     stagger = topDirEntry.max_depth()
             else:
                 print "I don't know what this is" + entry
@@ -285,28 +273,30 @@ class EntryList:
         be deleted.
         """
         prevCount = self.count_deleted()
-        if deleteEmptyDirs:
-            for name, e in allFiles.contents.iteritems():
+        if not self.args.keep_empty_dirs:
+            for _, e in self.contents.iteritems():
                 e.prune_empty()
-        return allFiles.count_deleted() - prevCount
+        return self.count_deleted() - prevCount
 
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
-    def __init__(self, allFiles):
+    def __init__(self, allFiles, args):
         self.contentHash = defaultdict( lambda: [] )
         self.minDepth = 1
         self.maxDepth = 0
         # we will use this later to count deletions:
         self.allFiles = allFiles
+        # reference to launch instructions
+        self.args = args
 
-        for name, e in allFiles.contents.iteritems():
+        for _, e in allFiles.contents.iteritems():
             if isinstance(e, FileObj):
                 self.add_entry(e)
             else:
                 for dirEntry in ifilter(
                         lambda x: x.deleted is False, 
                         e.dirwalk()):
-                    for name, fileEntry in ifilter(
+                    for _, fileEntry in ifilter(
                             lambda x: x[1].deleted is False,  
                             dirEntry.files.iteritems()):
                         self.add_entry(fileEntry)
@@ -355,17 +345,16 @@ class HashMap:
         identical contents (as determined elsewhere) to determine which of
         the candidates is the "keeper" (or winner).  The other candidates
         are designated losers.  The winner is selected by comparing the
-        depths of the candidates.  If reverseSelection is true, the deepest
+        depths of the candidates.  If reverse_selection is true, the deepest
         candidate is chosen, else the shallowest is chosen.  In the case
         of a tie, the length of the full path is compared.
         """
         if len(candidates) == 0:
             return
 
-        global reverseSelection
         candidates.sort(
             key=attrgetter('depth','abspathnamelen','abspathname'), 
-            reverse=reverseSelection)
+            reverse=self.args.reverse_selection)
         winner = candidates.pop(0)
 
         if isinstance(winner, DirObj) and winner.is_empty():
@@ -382,7 +371,7 @@ class HashMap:
             if candidate != winner:
                 if not candidate.deleted:
                     candidate.delete()
-                    if verbosity > 0:
+                    if self.args.verbosity > 0:
                         if isinstance(candidate,DirObj):
                             print '# dir  "' + candidate.abspathname,
                         else:
@@ -395,7 +384,6 @@ class HashMap:
         """Compares all entries and where hash collisions exists, pick a
         keeper.
         """
-        global verbosity
         prevCount = self.allFiles.count_deleted()
 
         # no need to resolve uniques, so remove them from the HashMap
@@ -409,7 +397,7 @@ class HashMap:
             del self.contentHash[entry]
 
         # delete the directories first, in order of (de/in)creasing depth,
-        # depending on the reverseSelection setting.
+        # depending on the reverse_selection setting.
         #
         # This approach isn't strictly required but it results in fewer
         # calls to this function if we delete leaf nodes first, as it will
@@ -417,10 +405,9 @@ class HashMap:
         # resolve().
 
         depths=range(self.minDepth-1,self.maxDepth+1)
-        global reverseSelection
-        if reverseSelection:
+        if self.args.reverse_selection:
             depths.reverse()
-        if verbosity > 0:
+        if self.args.verbosity > 0:
             print '# checking candidates in dir depth order:',
             print str(depths)
 
@@ -428,7 +415,7 @@ class HashMap:
             #print '# checking depth ' + str(depthFilter)
             for hashval, candidates in ifilter(lambda x: 
                     member_is_type(x,DirObj),self.contentHash.iteritems()):
-                if reverseSelection:
+                if self.args.reverse_selection:
                     maybes = [x for x in candidates if x.depth < depthFilter ]
                 else:
                     maybes = [x for x in candidates if x.depth > depthFilter ]
@@ -447,8 +434,9 @@ class DirObj():
     """A directory object which can hold metadata and references to
     files and subdirectories.
     """
-    def __init__(self, name, weightAdjust=0, parent=None):
+    def __init__(self, name, args, weightAdjust=0, parent=None):
         self.name = name
+        self.args = args
         self.files = {}
         self.deleted = False
         self.winner = None
@@ -515,7 +503,7 @@ class DirObj():
             return tmpSub.place_dir(tmpName, weightAdjust)
 
         #print "did not find " + nextDirName + " in " + self.name
-        nextDir = DirObj(nextDirName, weightAdjust, self)
+        nextDir = DirObj(nextDirName, args, weightAdjust, self)
         self.subdirs[nextDirName]=nextDir
         return nextDir.place_dir(os.path.join(*inputDirList), weightAdjust)
 
@@ -594,7 +582,7 @@ class DirObj():
     # DirObj.prune_empty
     def prune_empty(self):
         """Crawls through all directories and marks the shallowest
-        empty entiries for deletion.
+        empty entries for deletion.
         """
         if (self.is_empty()
                 and not self.deleted
@@ -625,10 +613,8 @@ class DirObj():
         for d in digests:
             sha1.update(d)
         self.hexdigest = sha1.hexdigest()
-        global deleteEmptyDirs
         if (len(self.files) + len(self.subdirs)) == 0:
-            self.deleted = deleteEmptyDirs
-        
+            self.deleted = not self.args.keep_empty_dirs
 
     # DirObj.count_bytes
     def count_bytes(self, deleted=False):
@@ -662,8 +648,9 @@ class DirObj():
 
 class FileObj():
     """A file object which stores some metadata"""
-    def __init__(self, name, parent=None, weightAdjust = 0):
-        self.name = name;
+    def __init__(self, name, db, parent=None, weightAdjust = 0):
+        self.name = name
+        self.db = db
         self.winner = None
         self.parent = parent
         self.weightAdjust = weightAdjust
@@ -677,18 +664,19 @@ class FileObj():
             self.pathname = self.name
             self.depth = self.weightAdjust
 
-        self.abspathname = os.path.abspath(self.pathname);
+        self.abspathname = os.path.abspath(self.pathname)
         self.abspathnamelen = len(self.abspathname)
 
         statResult = os.stat(self.abspathname)
         self.modTime = statResult.st_mtime
         self.createTime = statResult.st_ctime
         self.bytes = statResult.st_size
-        self.hexdigest = get_hash(self)
+
+        if self.db is not None:
+            self.hexdigest = self.db.lookup_hash(self)
+        else:
+            self.hexdigest = compute_hash(self.abspathname)
         self.deleted = False
-        global deleteEmptyFiles
-        if self.bytes == 0:
-            self.deleted = deleteEmptyFiles 
 
     # FileObj.max_depth
     def max_depth(self):
@@ -783,7 +771,6 @@ class HashDbObj():
 
     def lookup_hash(self, f):
         """look up this path to see if it has already been computed"""
-        global verbosity
         if f.abspathname in self.db:
             # we've a cached hash value for this abspathname
             if f.modTime > self.modTime:
@@ -792,7 +779,7 @@ class HashDbObj():
             else:
                 # db is newer than file
                 digest = self.db[f.abspathname]
-                if verbosity > 0:
+                if self.args.verbosity > 0:
                     print '# hash ' + digest + ' for ' + f.abspathname + ' already in db.'
                 return digest
         digest=compute_hash(f.abspathname)
@@ -802,7 +789,6 @@ class HashDbObj():
 
     def clean(self):
         """function to remove dead nodes from the hash db"""
-        global verbosity
         if self.dbType != 'gdbm':
             print '# non-gdbm databases (' + self.dbType + ') dont support the',
             print 'reorganize method!'
@@ -825,13 +811,13 @@ class HashDbObj():
                 os.stat(currKey)
             except OSError:
                 del self.db[currKey]
-                if verbosity > 0:
+                if self.args.verbosity > 0:
                     sys.stdout.write('*')
                     sys.stdout.flush()
                 misscount = misscount+1
             else:
                 hitcount = hitcount + 1
-                if verbosity > 0:
+                if self.args.verbosity > 0:
                     sys.stdout.write('.')
                     sys.stdout.flush()
         print "# reorganizing " + self.pathname
@@ -879,57 +865,36 @@ def run_tests():
                 return -1
     return 0
 
-if __name__ == '__main__':
-    startTime = time.time()
-    desc="generate commands to eliminate redundant files and directories"
-    parser = argparse.ArgumentParser(description=desc)
-    parser.add_argument("-v", "--verbosity", action="count", default=0,
-                    help="increase output verbosity")
-    parser.add_argument("-d", "--database", 
-                    help="name of DBM file to use for hash cache")
-    parser.add_argument("-c", "--clean-database", action="store_true",
-                    help="clean hash cache instead of normal operation")
-    parser.add_argument("-s", "--stagger-paths", action="store_true",
-                    help="always prefer files in argument order")
-    parser.add_argument("-r", "--reverse-selection", action="store_true",
-                    help="reverse the dir/file selection choices")
-    parser.add_argument("-t", "--run-tests", action="store_true",
-                    help="run all the tests listed in 'test' subdir")
-    args, paths = parser.parse_known_args()
 
-    verbosity = args.verbosity
-    reverseSelection = args.reverse_selection
-
-    if args.run_tests:
-        sys.exit(run_tests())
-
-    if args.database is not None:
-        db=HashDbObj(args.database)
-
+def main(args, paths):
     if args.clean_database and db is None:
         print '# database file must be specified for --clean-database',
         print 'command (use -d)'
-        sys.exit(-1)
+        return(-1)
 
     if len(paths) == 0 and args.stagger_paths:
-            print '# -s/--stagger-paths specified, but no paths provided!'
-            sys.exit(-1)
+        print '# -s/--stagger-paths specified, but no paths provided!'
+        return(-1)
+
+    db = None
+    if args.database is not None:
+        db=HashDbObj(args.database)
 
     if args.clean_database:
         db.clean()
 
     if len(paths) > 0:
-        allFiles = EntryList(paths, args.stagger_paths)
+        allFiles = EntryList(paths, db, args)
         passCount = 0
         # fake value to get the loop started:
         deleted = 1
         # while things are still being removed, keep working:
         while deleted > 0:
             sys.stdout.flush()
-            h = HashMap(allFiles)
+            h = HashMap(allFiles, args)
             deletedDirectories = allFiles.prune_empty()
 
-            h = HashMap(allFiles)
+            h = HashMap(allFiles, args)
             deletedHashMatches = h.resolve()
 
             deleted = deletedDirectories + deletedHashMatches
@@ -957,13 +922,41 @@ if __name__ == '__main__':
         reportLists = synthesize_reports(reportMaps)
 
         for report in reportLists:
-            generate_map_commands(report)
+            generate_map_commands(report, emptyReportNames)
 
         endTime = time.time()
         print '\n# total file data bytes marked for deletion',
         print sizeof_fmt(allFiles.count_bytes(deleted=True))
         print '# total dedup running time: ' + str(endTime - startTime),
         print 'seconds.'
-    ignore_val = sizeof_fmt(pow(1024,8))
+    return 0
+
+if __name__ == '__main__':
+    startTime = time.time()
+    desc="generate commands to eliminate redundant files and directories"
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument("-v", "--verbosity", action="count", default=0,
+                    help="increase output verbosity")
+    parser.add_argument("-d", "--database", 
+                    help="name of DBM file to use for hash cache")
+    parser.add_argument("-c", "--clean-database", action="store_true",
+                    help="clean hash cache instead of normal operation")
+    parser.add_argument("-s", "--stagger-paths", action="store_true",
+                    help="always prefer files in argument order")
+    parser.add_argument("-r", "--reverse-selection", action="store_true",
+                    help="reverse the dir/file selection choices")
+    parser.add_argument("-t", "--run-tests", action="store_true",
+                    help="run all the tests listed in 'test' subdir")
+    parser.add_argument("-f", "--keep-empty-files", action="store_true",
+                    help="do not delete empty files (default to false)")
+    parser.add_argument("-e", "--keep-empty-dirs", action="store_true",
+                    help="do not delete empty directories (default to false)")
+    args, paths = parser.parse_known_args()
+
+    if args.run_tests:
+        sys.exit(run_tests())
+    else:
+        sys.exit(main(args, paths))
+
 
 # vim: set expandtab sw=4 ts=4:
