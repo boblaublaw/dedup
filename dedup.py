@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import os
 import sys
-import stat
 import time
 import argparse
 import shutil
@@ -11,8 +9,7 @@ from itertools import chain
 from collections import defaultdict
 from hashmap import HashMap
 from hashdbobj import HashDbObj
-from fileobj import FileObj
-from dirobj import DirObj, DELETE_FILE_LIST, DELETE_DIR_LIST, DO_NOT_DELETE_LIST
+from entrylist import EntryList
 
 # what to export when other scripts import this module:
 #__all__ = ["FileObj", "DirObj", "EntryObj", "HashDbObj" ]
@@ -28,13 +25,6 @@ def sizeof_fmt(num, suffix='B'):
 
 # for test coverage we calculate a value then throw it away:
 ignore_val = sizeof_fmt(pow(1024,8))
-
-def issocket(path):
-    """For some reason python provides isfile and isdirectory but not
-    issocket().
-    """
-    mode = os.stat(path).st_mode
-    return stat.S_ISSOCK(mode)
 
 def generate_delete(filename):
     """generates not-quite-safe rm commands.  TODO does not handle
@@ -54,21 +44,6 @@ def check_int(s):
     if s[0] in ('-', '+'):
         return s[1:].isdigit()
     return s.isdigit()
-
-def check_level(pathname):
-    """inspects a pathname for a weight prefix on the front.  This
-    completely breaks files that actually start with "<int>:"
-    """
-    parts = pathname.split(':')
-    if len(parts) > 1:
-        firstPart = parts.pop(0)
-        remainder = ':'.join(parts)
-        if check_int(firstPart):
-            return int(firstPart), remainder
-
-    # if anything goes wrong just fail back to assuming the whole
-    # thing is a path without a weight prefix.
-    return 0, pathname
 
 def synthesize_report(report):
     winnerList = []
@@ -131,94 +106,6 @@ def generate_map_commands(report, emptyReportNames):
         for loser in winner['loserList']:
             generate_delete(loser.abspathname)
         print
-
-class EntryList:
-    """A container for all source directories and files to examine"""
-
-    def __init__(self, paths, db, args):
-        self.contents = {}
-        self.db = db
-        self.args = args
-        stagger = 0
-
-        # walk arguments adding files and directories
-        for entry in paths:
-            # strip trailing slashes, they are not needed
-            entry = entry.rstrip(os.path.sep)
-
-            # check if a weight has been provided for this argument
-            weightAdjust, entry = check_level(entry)
-
-            if os.path.isfile(entry):
-                if args.stagger_paths:
-                    weightAdjust = weightAdjust + stagger
-                newFile = FileObj(entry, weightAdjust = weightAdjust)
-                if args.stagger_paths:
-                    stagger = stagger + newFile.depth
-                self.contents[entry] = newFile
-            elif issocket(entry):
-                print '# Skipping a socket ' + entry
-            elif os.path.isdir(entry):
-                if args.stagger_paths:
-                    weightAdjust = weightAdjust + stagger
-                topDirEntry = DirObj(entry, self.args, weightAdjust)
-                self.contents[entry] = topDirEntry
-                for dirName, subdirList, fileList in os.walk(entry,
-                                                        topdown = False):
-                    # we do not walk into or add names from our ignore list.  
-                    # We wont delete them if they are leaf nodes and we wont 
-                    # count them towards parent nodes.
-                    if os.path.basename(dirName) in DELETE_DIR_LIST: 
-                        continue
-
-                    dirEntry = topDirEntry.place_dir(dirName, weightAdjust)
-                    if dirEntry is None:
-                        continue
-
-                    for fname in fileList:
-                        pname = os.path.join(dirEntry.abspathname, fname)
-                        if issocket(pname):
-                            print '# Skipping a socket',
-                            print pname
-                        elif os.path.basename(fname) not in DELETE_FILE_LIST:
-                            newFile = FileObj(fname, db,
-                                            parent = dirEntry,
-                                            weightAdjust = weightAdjust)
-                            if newFile.bytes == 0 and not args.keep_empty_files:
-                                newFile.deleted = True
-                            dirEntry.files[fname]=newFile
-                if args.stagger_paths:
-                    stagger = topDirEntry.max_depth()
-            else:
-                print "I don't know what this is" + entry
-                sys.exit()
-
-    # EntryList.count_bytes
-    def count_bytes(self, deleted=False):
-        """Returns a btyecount of all the (deleted) objects within"""
-        bytes = 0
-        for name, e in self.contents.iteritems():
-            bytes = bytes + e.count_bytes(deleted)
-        return bytes
-
-    # EntryList.count_deleted
-    def count_deleted(self):
-        """Returns a count of all the deleted objects within"""
-        count = 0
-        for name, e in self.contents.iteritems():
-            count = count + e.count_deleted()
-        return count
-
-    # EntryList.prune_empty
-    def prune_empty(self):
-        """Flags all the children of the deleted objects within to also
-        be deleted.
-        """
-        prevCount = self.count_deleted()
-        if not self.args.keep_empty_dirs:
-            for _, e in self.contents.iteritems():
-                e.prune_empty()
-        return self.count_deleted() - prevCount
 
 # jacked from SO:
 #   https://stackoverflow.com/questions/229186/os-walk-without-digging-into-directories-below
