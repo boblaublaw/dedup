@@ -44,7 +44,7 @@ DELETE_DIR_LIST = [
     "__MACOSX" ]
  
 # This list describes files and directories we do not want to risk
-# messing with.  If we encounter these, never mark them as deletable.
+# messing with.  If we encounter these, never mark them for deletion.
 # TODO - implement this
 DO_NOT_DELETE_LIST = []
 
@@ -60,7 +60,7 @@ def sizeof_fmt(num, suffix='B'):
         num /= 1024.0
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
-# for test coverage
+# for test coverage we calculate a value then throw it away:
 ignore_val = sizeof_fmt(pow(1024,8))
 
 def member_is_type(tuple, type):
@@ -842,6 +842,15 @@ def walklevel(some_dir, level=1):
         if num_sep + level <= num_sep_this:
             del dirs[:]
 
+def run_tests():
+    # walk all the dirs under 'tests' dir:
+    # TODO - should probably look at the script location instead of PWD
+    for dirName, subdirList, fileList in walklevel('tests', 0):
+        for testName in subdirList:
+            if (-1 == run_test(testName)):
+                return -1
+    return 0
+
 def run_test(testName):
     print 'running test', testName
     testDir = 'tests' + os.path.sep + testName + os.path.sep + 'test'
@@ -852,20 +861,16 @@ def run_test(testName):
     shutil.rmtree(testDir, ignore_errors=True)
     # copy tests/${testName}/before to tests/${testName}/test
     shutil.copytree(beforeDir, testDir, symlinks=False, ignore=None)
+    # pull arguments out of tests/${testName}/args.json(?)
+
     # dedup tests/${testName}/test
+
     # compare tests/${testName}/test with tests/${testName}/after
+    # use "diff --recursive --brief"
     return 0
 
-def run_tests():
-    # walk all the dirs under 'tests' dir:
-    # TODO - should probably look at the script location instead of PWD
-    for dirName, subdirList, fileList in walklevel('tests', 0):
-        for testName in subdirList:
-            if (-1 == run_test(testName)):
-                return -1
-    return 0
-
-
+# each command line invocation runs main once.
+# the run_tests() test harness will run main() several times.
 def main(args, paths):
     if args.clean_database and db is None:
         print '# database file must be specified for --clean-database',
@@ -953,10 +958,10 @@ if __name__ == '__main__':
                     help="do not delete empty directories (default to false)")
     args, paths = parser.parse_known_args()
 
+    # requesting unit test execution discards all other options.
     if args.run_tests:
         sys.exit(run_tests())
     else:
         sys.exit(main(args, paths))
-
 
 # vim: set expandtab sw=4 ts=4:
