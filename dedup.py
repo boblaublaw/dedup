@@ -37,14 +37,6 @@ def generate_delete(filename):
     else:
         print "rm -rf '" + filename + "'"
 
-def check_int(s):
-    """helper function that returns true if you pass in a string that
-    represents an integer
-    """
-    if s[0] in ('-', '+'):
-        return s[1:].isdigit()
-    return s.isdigit()
-
 def synthesize_report(report):
     winnerList = []
     allMarkedBytes = 0
