@@ -2,6 +2,16 @@
 
 [![Join the chat at https://gitter.im/boblaublaw/dedup](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/boblaublaw/dedup?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
+### TODO ###
+
+ * build unit test harness
+ * 100% with 'coverage' 
+ * pylint
+ * port to python3
+ * windows compatibility
+ * package and distribute
+ * add interactivity
+
 ### File and Directory Deduplication Tool ###
 
 This project has two goals:

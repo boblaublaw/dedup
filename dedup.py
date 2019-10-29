@@ -6,6 +6,7 @@ import sys
 import stat
 import time
 import argparse
+import shutil
 from operator import attrgetter
 from itertools import ifilter, chain
 from collections import defaultdict
@@ -843,6 +844,41 @@ class HashDbObj():
         print '# Database clean complete after ' + str(endTime - startTime),
         print 'seconds.\n'
 
+# jacked from SO:
+#   https://stackoverflow.com/questions/229186/os-walk-without-digging-into-directories-below
+def walklevel(some_dir, level=1):
+    some_dir = some_dir.rstrip(os.path.sep)
+    assert os.path.isdir(some_dir)
+    num_sep = some_dir.count(os.path.sep)
+    for root, dirs, files in os.walk(some_dir):
+        yield root, dirs, files
+        num_sep_this = root.count(os.path.sep)
+        if num_sep + level <= num_sep_this:
+            del dirs[:]
+
+def run_test(testName):
+    print 'running test', testName
+    testDir = 'tests' + os.path.sep + testName + os.path.sep + 'test'
+    beforeDir = 'tests' + os.path.sep + testName + os.path.sep + 'before'
+    afterDir = 'tests' + os.path.sep + testName + os.path.sep + 'after'
+    print testDir #, beforeDir, afterDir
+    # unconditonally remove tests/${testName}/test
+    shutil.rmtree(testDir, ignore_errors=True)
+    # copy tests/${testName}/before to tests/${testName}/test
+    shutil.copytree(beforeDir, testDir, symlinks=False, ignore=None)
+    # dedup tests/${testName}/test
+    # compare tests/${testName}/test with tests/${testName}/after
+    return 0
+
+def run_tests():
+    # walk all the dirs under 'tests' dir:
+    # TODO - should probably look at the script location instead of PWD
+    for dirName, subdirList, fileList in walklevel('tests', 0):
+        for testName in subdirList:
+            if (-1 == run_test(testName)):
+                return -1
+    return 0
+
 if __name__ == '__main__':
     startTime = time.time()
     desc="generate commands to eliminate redundant files and directories"
@@ -857,10 +893,15 @@ if __name__ == '__main__':
                     help="always prefer files in argument order")
     parser.add_argument("-r", "--reverse-selection", action="store_true",
                     help="reverse the dir/file selection choices")
+    parser.add_argument("-t", "--run-tests", action="store_true",
+                    help="run all the tests listed in 'test' subdir")
     args, paths = parser.parse_known_args()
 
     verbosity = args.verbosity
     reverseSelection = args.reverse_selection
+
+    if args.run_tests:
+        sys.exit(run_tests())
 
     if args.database is not None:
         db=HashDbObj(args.database)
@@ -923,5 +964,6 @@ if __name__ == '__main__':
         print sizeof_fmt(allFiles.count_bytes(deleted=True))
         print '# total dedup running time: ' + str(endTime - startTime),
         print 'seconds.'
+    ignore_val = sizeof_fmt(pow(1024,8))
 
 # vim: set expandtab sw=4 ts=4:
