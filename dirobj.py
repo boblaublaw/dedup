@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import shutil
 import hashlib
 
 # CONSTANTS:
@@ -46,7 +47,7 @@ class DirObj():
         self.name = name
         self.args = args
         self.files = {}
-        self.deleted = False
+        self.to_delete = False
         self.winner = None
         self.subdirs = {}
         self.weightAdjust = weightAdjust
@@ -56,6 +57,22 @@ class DirObj():
         self.abspathname = os.path.abspath(self.pathname)
         self.abspathnamelen = len(self.abspathname)
         self.depth = len(ancestry) + self.weightAdjust
+
+    # DirObj.testDelete
+    def test_delete(self):
+        # confirm that the pathname starts with "test"
+        if self.to_delete:
+            if self.pathname[:6] != "tests/":
+                print 'something has gone catastrophically wrong in DirObj.test_delete'
+                sys.exit(-1)
+            else:
+                print("# deleting dir " + self.pathname)
+                shutil.rmtree(self.pathname)
+        else:
+            for _, s in self.subdirs.iteritems():
+                s.test_delete()
+            for _, f in self.files.iteritems():
+                f.test_delete()
 
     # DirObj.get_lineage
     def get_lineage(self):
@@ -73,8 +90,8 @@ class DirObj():
         """Determine the deepest point from this directory"""
         md = self.depth
         if len(self.subdirs.keys()):
-            for name, entry in self.subdirs.iteritems():
-                if not entry.deleted:
+            for _, entry in self.subdirs.iteritems():
+                if not entry.to_delete:
                     td = entry.max_depth()
                     if td > md:
                         md = td
@@ -127,13 +144,13 @@ class DirObj():
             yield self
 
     # DirObj.delete
-    def delete(self):
+    def mark_for_delete(self):
         """Mark this directory and all children as deleted"""
-        self.deleted = True
-        for name, d in self.subdirs.iteritems():
-            d.delete()
-        for name, f in self.files.iteritems():
-            f.delete()
+        self.to_delete = True
+        for _, d in self.subdirs.iteritems():
+            d.mark_for_delete()
+        for _, f in self.files.iteritems():
+            f.mark_for_delete()
 
     # DirObj.generate_reports
     def generate_reports(self, reports):
@@ -144,7 +161,7 @@ class DirObj():
         emptyReport = reports['directories that are empty after reduction']
         startedEmptyReport = reports['directories that started empty']
 
-        if self.deleted:
+        if self.to_delete:
             if self.winner is None:
                 # this is a cheat wherein I use a magic value to designate 
                 # empty dirs
@@ -178,11 +195,11 @@ class DirObj():
         for deletion.)
         """
         for fileName, fileEntry in self.files.iteritems():
-            if not fileEntry.deleted:
+            if not fileEntry.to_delete:
                 return False
 
         for dirName, subdir in self.subdirs.iteritems():
-            if not subdir.deleted and not subdir.is_empty():
+            if not subdir.to_delete and not subdir.is_empty():
                 return False
 
         return True
@@ -193,14 +210,14 @@ class DirObj():
         empty entries for deletion.
         """
         if (self.is_empty()
-                and not self.deleted
+                and not self.to_delete
                 and self.parent is None):
-            self.delete()
+            self.mark_for_delete()
         elif (self.is_empty()
-                and not self.deleted
+                and not self.to_delete
                 and self.parent is not None
                 and not self.parent.is_empty()):
-            self.delete()
+            self.mark_for_delete()
         else:
             for dirname, dirEntry in self.subdirs.iteritems():
                 dirEntry.prune_empty()
@@ -222,35 +239,35 @@ class DirObj():
             sha1.update(d)
         self.hexdigest = sha1.hexdigest()
         if (len(self.files) + len(self.subdirs)) == 0:
-            self.deleted = not self.args.keep_empty_dirs
+            self.to_delete = not self.args.keep_empty_dirs
 
     # DirObj.count_bytes
-    def count_bytes(self, deleted=False):
+    def count_bytes(self, to_delete=False):
         """returns a count of all the sizes of the deleted objects
         within.
         """
         bytes = 0
         for name, d in self.subdirs.iteritems():
-            bytes = bytes + d.count_bytes(deleted)
+            bytes = bytes + d.count_bytes(to_delete)
         for name, f in self.files.iteritems():
-            if f.deleted and deleted:
-                bytes = bytes + f.count_bytes(deleted)
-            elif not f.deleted and not deleted:
-                bytes = bytes + f.count_bytes(deleted)
+            if f.to_delete and to_delete:
+                bytes = bytes + f.count_bytes(to_delete)
+            elif not f.to_delete and not to_delete:
+                bytes = bytes + f.count_bytes(to_delete)
         return bytes
 
     # DirObj.count_deleted
     def count_deleted(self):
         """returns a count of all the deleted objects within"""
-        if self.deleted:
-            deleted = 1
+        if self.to_delete:
+            to_delete = 1
         else:
-            deleted = 0
+            to_delete = 0
         for name, d in self.subdirs.iteritems():
-            deleted = deleted + d.count_deleted()
+            to_delete = to_delete + d.count_deleted()
         for name, f in self.files.iteritems():
-            if f.deleted:
-                deleted = deleted + 1
-        return deleted
+            if f.to_delete:
+                to_delete = to_delete + 1
+        return to_delete
 
 # vim: set expandtab sw=4 ts=4:

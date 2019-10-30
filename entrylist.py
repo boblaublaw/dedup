@@ -31,14 +31,12 @@ def check_level(pathname):
         remainder = ':'.join(parts)
         if check_int(firstPart):
             return int(firstPart), remainder
-
     # if anything goes wrong just fail back to assuming the whole
     # thing is a path without a weight prefix.
     return 0, pathname
 
 class EntryList:
     """A container for all source directories and files to examine"""
-
     def __init__(self, paths, db, args):
         self.contents = {}
         self.db = db
@@ -46,33 +44,32 @@ class EntryList:
         stagger = 0
 
         # walk arguments adding files and directories
-        for entry in paths:
+        for path in paths:
             # strip trailing slashes, they are not needed
-            entry = entry.rstrip(os.path.sep)
+            path = path.rstrip(os.path.sep)
 
             # check if a weight has been provided for this argument
-            weightAdjust, entry = check_level(entry)
+            weightAdjust, entry = check_level(path)
 
-            if os.path.isfile(entry):
+            if os.path.isfile(path):
                 if args.stagger_paths:
                     weightAdjust = weightAdjust + stagger
-                newFile = FileObj(entry, weightAdjust = weightAdjust)
+                newFile = FileObj(path, weightAdjust = weightAdjust)
                 if args.stagger_paths:
                     stagger = stagger + newFile.depth
-                self.contents[entry] = newFile
-            elif issocket(entry):
+                self.contents[path] = newFile
+            elif issocket(path):
                 print '# Skipping a socket ' + entry
-            elif os.path.isdir(entry):
+            elif os.path.isdir(path):
                 if args.stagger_paths:
                     weightAdjust = weightAdjust + stagger
-                topDirEntry = DirObj(entry, self.args, weightAdjust)
-                self.contents[entry] = topDirEntry
-                for dirName, subdirList, fileList in os.walk(entry,
-                                                        topdown = False):
+                topDirEntry = DirObj(path, self.args, weightAdjust)
+                self.contents[path] = topDirEntry
+                for dirName, subdirList, fileList in os.walk(path, topdown = False):
                     # we do not walk into or add names from our ignore list.  
                     # We wont delete them if they are leaf nodes and we wont 
                     # count them towards parent nodes.
-                    if os.path.basename(dirName) in DELETE_DIR_LIST: 
+                    if os.path.basename(dirName) in DELETE_DIR_LIST:
                         continue
 
                     dirEntry = topDirEntry.place_dir(dirName, weightAdjust)
@@ -94,8 +91,13 @@ class EntryList:
                 if args.stagger_paths:
                     stagger = topDirEntry.max_depth()
             else:
-                print "I don't know what this is" + entry
+                print "I don't know what this is" + path
                 sys.exit()
+
+    # EntryList.testDeletes
+    def test_deletes(self):
+        for name, e in self.contents.iteritems():
+            e.test_delete()
 
     # EntryList.count_bytes
     def count_bytes(self, deleted=False):

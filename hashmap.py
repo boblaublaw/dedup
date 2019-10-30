@@ -30,10 +30,10 @@ class HashMap:
                 self.add_entry(e)
             else:
                 for dirEntry in ifilter(
-                        lambda x: x.deleted is False, 
+                        lambda x: x.to_delete is False,
                         e.dirwalk()):
                     for _, fileEntry in ifilter(
-                            lambda x: x[1].deleted is False,  
+                            lambda x: x[1].to_delete is False,
                             dirEntry.files.iteritems()):
                         self.add_entry(fileEntry)
                     dirEntry.finalize()
@@ -59,8 +59,8 @@ class HashMap:
         for hashval, list in self.contentHash.iteritems():
             trimmedList=[]
             for entry in list:
-                if entry.deleted:
-                    entry.delete()
+                if entry.to_delete:
+                    entry.mark_for_delete()
                 else:
                     trimmedList.append(entry)
             # store the trimmed list
@@ -105,8 +105,8 @@ class HashMap:
         # once we have a winner, mark all the other candidates as losers
         for candidate in candidates:
             if candidate != winner:
-                if not candidate.deleted:
-                    candidate.delete()
+                if not candidate.to_delete:
+                    candidate.mark_for_delete()
                     if self.args.verbosity > 0:
                         if isinstance(candidate,DirObj):
                             print '# dir  "' + candidate.abspathname,

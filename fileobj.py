@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+from hashdbobj import compute_hash
 
 class FileObj():
     """A file object which stores some metadata"""
@@ -33,23 +34,33 @@ class FileObj():
             self.hexdigest = self.db.lookup_hash(self)
         else:
             self.hexdigest = compute_hash(self.abspathname)
-        self.deleted = False
+        self.to_delete = False
+
+    # FileObj.test_delete
+    # TODO increase protections against mistakes here
+    def test_delete(self):
+        if self.to_delete:
+            print("# deleting file " + self.pathname)
+            if self.pathname[:6] != "tests/":
+                print 'something has gone catastrophically wrong in FileObj.test_delete'
+                sys.exit(-1)
+            os.remove(self.pathname)
 
     # FileObj.max_depth
     def max_depth(self):
         return self.depth
 
     # FileObj.delete
-    def delete(self):
+    def mark_for_delete(self):
         """Mark for deletion"""
-        self.deleted = True
+        self.to_delete = True
 
     # FileObj.generate_reports
     def generate_reports(self, reports):
         fileReport = reports['files']
         emptyReport = reports['empty files']
         """Generates delete commands to dedup all contents"""
-        if not self.deleted:
+        if not self.to_delete:
             return
         # this is a cheat wherein I use the emptyReport as a list of keys
         # and I disregard the values
@@ -72,20 +83,20 @@ class FileObj():
         return False            # can't prune a file
 
     # FileObj.count_bytes
-    def count_bytes(self, deleted=False):
+    def count_bytes(self, to_delete=False):
         """Returns a count of all the sizes of the deleted objects
         within
         """
-        if self.deleted and deleted:
+        if self.to_delete and to_delete:
              return self.bytes
-        elif not self.deleted and not deleted:
+        elif not self.to_delete and not to_delete:
             return self.bytes
         return 0 
 
     # FileObj.count_deleted
     def count_deleted(self):
         """Returns a count of all the deleted objects within"""
-        if self.deleted:
+        if self.to_delete:
              return 1
         else:
             return 0

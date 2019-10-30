@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 import sys
 import time
 import argparse
@@ -22,9 +23,6 @@ def sizeof_fmt(num, suffix='B'):
             return "%3.1f %s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.1f%s%s" % (num, 'Yi', suffix)
-
-# for test coverage we calculate a value then throw it away:
-ignore_val = sizeof_fmt(pow(1024,8))
 
 def generate_delete(filename):
     """generates not-quite-safe rm commands.  TODO does not handle
@@ -111,44 +109,49 @@ def walklevel(some_dir, level=1):
         if num_sep + level <= num_sep_this:
             del dirs[:]
 
-def run_tests():
+def run_test(args, analyze, parser, testName):
+    print '# running test', testName
+    ephemeralDir = 'tests' + os.path.sep + testName + os.path.sep + 'ephemeral'
+    beforeDir = 'tests' + os.path.sep + testName + os.path.sep + 'before'
+    afterDir = 'tests' + os.path.sep + testName + os.path.sep + 'after'
+
+    # unconditonally remove the ephemeralDir
+    shutil.rmtree(ephemeralDir, ignore_errors=True)
+
+    # create the ephemeralDir based on the beforeDir
+    shutil.copytree(beforeDir, ephemeralDir, symlinks=False, ignore=None)
+
+    # pull arguments out of tests/${testName}/args.json(?)
+    # dedup tests/${testName}/test
+    args = parser.parse_args([])
+    results = analyze(args, [ ephemeralDir ])
+    results.test_deletes()
+    # compare tests/${testName}/test with tests/${testName}/after
+
+    # use "diff --recursive --brief"
+    return 0
+
+def run_tests(args, analyze, parser):
     # walk all the dirs under 'tests' dir:
     # TODO - should probably look at the script location instead of PWD
     for dirName, subdirList, fileList in walklevel('tests', 0):
+        subdirList.sort()
         for testName in subdirList:
-            if (-1 == run_test(testName)):
+            if (-1 == run_test(args, analyze, parser, testName)):
                 return -1
-    return 0
-
-def run_test(testName):
-    print 'running test', testName
-    testDir = 'tests' + os.path.sep + testName + os.path.sep + 'test'
-    beforeDir = 'tests' + os.path.sep + testName + os.path.sep + 'before'
-    afterDir = 'tests' + os.path.sep + testName + os.path.sep + 'after'
-    print testDir #, beforeDir, afterDir
-    # unconditonally remove tests/${testName}/test
-    shutil.rmtree(testDir, ignore_errors=True)
-    # copy tests/${testName}/before to tests/${testName}/test
-    shutil.copytree(beforeDir, testDir, symlinks=False, ignore=None)
-    # pull arguments out of tests/${testName}/args.json(?)
-
-    # dedup tests/${testName}/test
-
-    # compare tests/${testName}/test with tests/${testName}/after
-    # use "diff --recursive --brief"
     return 0
 
 # each command line invocation runs main once.
 # the run_tests() test harness will run main() several times.
-def main(args, paths):
+def analyze(args, paths):
     if args.clean_database and db is None:
         print '# database file must be specified for --clean-database',
         print 'command (use -d)'
-        return(-1)
+        sys.exit(-1)
 
     if len(paths) == 0 and args.stagger_paths:
         print '# -s/--stagger-paths specified, but no paths provided!'
-        return(-1)
+        sys.exit(-1)
 
     db = None
     if args.database is not None:
@@ -176,34 +179,35 @@ def main(args, paths):
             if deleted > 0:
                 print '# ' + str(deleted) + ' entries deleted on pass',
                 print str(passCount)
+        return allFiles
 
-        # a list of report names we will generate.  Note that these are later
-        # indexed elsewhere, so be careful renaming
-        regularReportNames = [ 'directories', 'files' ]
-        emptyReportNames = [ 'directories that are empty after reduction',
-                        'directories that started empty', 'empty files' ]
+def generateReports(allFiles):
+    # a list of report names we will generate.  Note that these are later
+    # indexed elsewhere, so be careful renaming
+    regularReportNames = [ 'directories', 'files' ]
+    emptyReportNames = [ 'directories that are empty after reduction',
+                    'directories that started empty', 'empty files' ]
 
-        # create each category for files to delete in its own report.
-        # reports are a dict indexed by "winner" that points to a metadata
-        # and a list of losers
-        reportMaps={}
-        for reportName in chain(regularReportNames, emptyReportNames):
-            reportMaps[reportName] = defaultdict(lambda: [])
+    # create each category for files to delete in its own report.
+    # reports are a dict indexed by "winner" that points to a metadata
+    # and a list of losers
+    reportMaps={}
+    for reportName in chain(regularReportNames, emptyReportNames):
+        reportMaps[reportName] = defaultdict(lambda: [])
 
-        for name, e in allFiles.contents.iteritems():
-            e.generate_reports(reportMaps)
+    for _, e in allFiles.contents.iteritems():
+        e.generate_reports(reportMaps)
 
-        reportLists = synthesize_reports(reportMaps)
+    reportLists = synthesize_reports(reportMaps)
 
-        for report in reportLists:
-            generate_map_commands(report, emptyReportNames)
+    for report in reportLists:
+        generate_map_commands(report, emptyReportNames)
 
-        endTime = time.time()
-        print '\n# total file data bytes marked for deletion',
-        print sizeof_fmt(allFiles.count_bytes(deleted=True))
-        print '# total dedup running time: ' + str(endTime - startTime),
-        print 'seconds.'
-    return 0
+    endTime = time.time()
+    print '\n# total file data bytes marked for deletion',
+    print sizeof_fmt(allFiles.count_bytes(deleted=True))
+    print '# total dedup running time: ' + str(endTime - startTime),
+    print 'seconds.'
 
 if __name__ == '__main__':
     startTime = time.time()
@@ -229,8 +233,12 @@ if __name__ == '__main__':
 
     # requesting unit test execution discards all other options.
     if args.run_tests:
-        sys.exit(run_tests())
+        sys.exit(run_tests(args, analyze, parser))
     else:
-        sys.exit(main(args, paths))
+        results = analyze(args, paths)
+        results.test_deletes()
+        if results != None:
+            generateReports(results)
+        sys.exit(0)
 
 # vim: set expandtab sw=4 ts=4:
