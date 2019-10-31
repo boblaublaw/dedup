@@ -1,11 +1,9 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function
+#from __future__ import print_function
 from collections import defaultdict
 from fileobj import FileObj
 from dirobj import DirObj
-from itertools import ifilter
 from operator import attrgetter
 
 def member_is_type(tuple, type):
@@ -26,16 +24,16 @@ class HashMap:
         # reference to launch instructions
         self.args = args
 
-        for _, e in all_files.contents.iteritems():
+        for _, e in all_files.contents.items():
             if isinstance(e, FileObj):
                 self.add_entry(e)
             else:
-                for dir_entry in ifilter(
+                for dir_entry in filter(
                         lambda x: x.to_delete is False,
                         e.dirwalk()):
-                    for _, file_entry in ifilter(
+                    for _, file_entry in filter(
                             lambda x: x[1].to_delete is False,
-                            dir_entry.files.iteritems()):
+                            dir_entry.files.items()):
                         self.add_entry(file_entry)
                     dir_entry.finalize()
                     self.add_entry(dir_entry)
@@ -57,7 +55,7 @@ class HashMap:
     def prune(self):
         """Removes deleted objects from the HashMap"""
         deleteList = []
-        for hashval, list in self.content_hash.iteritems():
+        for hashval, list in self.content_hash.items():
             trimmedList=[]
             for entry in list:
                 if entry.to_delete:
@@ -127,7 +125,7 @@ class HashMap:
         # no need to resolve uniques, so remove them from the HashMap
         uniques=[]
         # you cannot modify a collection while iterating over it...
-        for hashval, list in self.content_hash.iteritems():
+        for hashval, list in self.content_hash.items():
             if len(list) == 1:
                 uniques.append(hashval)
         # ... so delete entries in a second pass.
@@ -144,14 +142,15 @@ class HashMap:
 
         depths=range(self.min_depth - 1,self.max_depth + 1)
         if self.args.reverse_selection:
-            depths.reverse()
+            depths=reversed(depths)
+
         if self.args.verbosity > 0:
             print ('# checking candidates in dir depth order: ' + str(depths))
 
         for depthFilter in depths:
             #print '# checking depth ' + str(depthFilter)
-            for hashval, candidates in ifilter(lambda x: 
-                    member_is_type(x,DirObj),self.content_hash.iteritems()):
+            for hashval, candidates in filter(lambda x: 
+                    member_is_type(x,DirObj),self.content_hash.items()):
                 if self.args.reverse_selection:
                     maybes = [x for x in candidates if x.depth < depthFilter ]
                 else:
@@ -160,7 +159,7 @@ class HashMap:
                     self.resolve_candidates(maybes)
             self.prune()
 
-        for hashval, candidates in ifilter(lambda x: member_is_type(x,FileObj),self.content_hash.iteritems()):
+        for hashval, candidates in filter(lambda x: member_is_type(x,FileObj),self.content_hash.items()):
             self.resolve_candidates(candidates)
         self.prune()
 

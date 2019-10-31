@@ -1,7 +1,5 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function
 import os
 import stat
 from fileobj import FileObj
@@ -113,14 +111,14 @@ class EntryList:
 
     # EntryList.testDeletes
     def test_deletes(self):
-        for name, e in self.contents.iteritems():
+        for name, e in self.contents.items():
             e.test_delete()
 
     # EntryList.count_bytes
     def count_bytes(self, deleted=False):
         """Returns a btyecount of all the (deleted) objects within"""
         bytes = 0
-        for name, e in self.contents.iteritems():
+        for name, e in self.contents.items():
             bytes = bytes + e.count_bytes(deleted)
         return bytes
 
@@ -128,7 +126,7 @@ class EntryList:
     def count_deleted(self):
         """Returns a count of all the deleted objects within"""
         count = 0
-        for name, e in self.contents.iteritems():
+        for name, e in self.contents.items():
             count = count + e.count_deleted()
         return count
 
@@ -139,7 +137,7 @@ class EntryList:
         """
         prevCount = self.count_deleted()
         if not self.args.keep_empty_dirs:
-            for _, e in self.contents.iteritems():
+            for _, e in self.contents.items():
                 e.prune_empty()
         return self.count_deleted() - prevCount
 

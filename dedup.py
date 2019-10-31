@@ -1,7 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function
 import os
 import sys
 import time
@@ -41,7 +40,7 @@ def synthesize_report(report):
     winner_list = []
     all_marked_bytes = 0
     all_marked_count = 0
-    for winner_name, loser_list in report.iteritems():
+    for winner_name, loser_list in report.items():
         marked_count = len(loser_list)
         all_marked_count = all_marked_count + marked_count
         total_marked_bytes = 0
@@ -63,7 +62,7 @@ def synthesize_report(report):
 
 def synthesize_reports(report_map):
     report_list=[]
-    for report_name, report in report_map.iteritems():
+    for report_name, report in report_map.items():
         new_report={}
         new_report['report_name']=report_name
         new_report['winner_list'], new_report['total_marked_bytes'], new_report['marked_count'] = synthesize_report(report)
@@ -217,7 +216,7 @@ def generate_reports(all_files):
     for report_name in chain(regular_report_names, empty_report_names):
         report_maps[report_name] = defaultdict(lambda: [])
 
-    for _, e in all_files.contents.iteritems():
+    for _, e in all_files.contents.items():
         e.generate_reports(report_maps)
 
     report_lists = synthesize_reports(report_maps)

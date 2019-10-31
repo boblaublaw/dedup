@@ -1,7 +1,5 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function
 import os
 import shutil
 import hashlib
@@ -54,9 +52,9 @@ class DirObj():
                     print("# deleting dir " + self.pathname)
                 shutil.rmtree(self.pathname)
         else:
-            for _, s in self.subdirs.iteritems():
+            for _, s in self.subdirs.items():
                 s.test_delete()
-            for _, f in self.files.iteritems():
+            for _, f in self.files.items():
                 f.test_delete()
 
     # DirObj.get_lineage
@@ -75,7 +73,7 @@ class DirObj():
         """Determine the deepest point from this directory"""
         md = self.depth
         if len(self.subdirs.keys()):
-            for _, entry in self.subdirs.iteritems():
+            for _, entry in self.subdirs.items():
                 if not entry.to_delete:
                     td = entry.max_depth()
                     if td > md:
@@ -122,7 +120,7 @@ class DirObj():
         """A generator which traverses just subdirectories"""
         if topdown:
             yield self
-        for name, d in self.subdirs.iteritems():
+        for name, d in self.subdirs.items():
             for dirEntry in d.dirwalk():
                 yield dirEntry
         if not topdown:
@@ -132,9 +130,9 @@ class DirObj():
     def mark_for_delete(self):
         """Mark this directory and all children as deleted"""
         self.to_delete = True
-        for _, d in self.subdirs.iteritems():
+        for _, d in self.subdirs.items():
             d.mark_for_delete()
-        for _, f in self.files.iteritems():
+        for _, f in self.files.items():
             f.mark_for_delete()
 
     # DirObj.generate_reports
@@ -158,9 +156,9 @@ class DirObj():
                 loser_list = dir_report[self.winner.abspathname]
                 loser_list.append(self)
         else:
-            for file_name, file_entry in self.files.iteritems():
+            for file_name, file_entry in self.files.items():
                 file_entry.generate_reports(reports)
-            for dirName, subdir in self.subdirs.iteritems():
+            for dirName, subdir in self.subdirs.items():
                 subdir.generate_reports(reports)
 
     # DirObj.started_empty
@@ -179,11 +177,11 @@ class DirObj():
         ignored items won't protect a directory from being marked 
         for deletion.)
         """
-        for file_name, file_entry in self.files.iteritems():
+        for file_name, file_entry in self.files.items():
             if not file_entry.to_delete:
                 return False
 
-        for dirName, subdir in self.subdirs.iteritems():
+        for dirName, subdir in self.subdirs.items():
             if not subdir.to_delete and not subdir.is_empty():
                 return False
 
@@ -204,24 +202,25 @@ class DirObj():
                 and not self.parent.is_empty()):
             self.mark_for_delete()
         else:
-            for dirname, dirEntry in self.subdirs.iteritems():
+            for dirname, dirEntry in self.subdirs.items():
                 dirEntry.prune_empty()
 
     # DirObj.finalize
     def finalize(self):
         """Once no more files or directories are to be added, we can
         create a meta-hash of all the hashes therein.  This allows us to
-        test for directories which have the same contents.
+        test for duplicate directories.
         """
         digests = []
-        for file_name, file_entry in self.files.iteritems():
+        for _, file_entry in self.files.items():
             digests.append(file_entry.hexdigest)
-        for dirname, dirEntry in self.subdirs.iteritems():
+        for _, dirEntry in self.subdirs.items():
             digests.append(dirEntry.hexdigest)
         digests.sort()
+        #map(encode('utf-8'), digests)
         sha1 = hashlib.sha1()
         for d in digests:
-            sha1.update(d)
+            sha1.update(d.encode('utf-8'))
         self.hexdigest = sha1.hexdigest()
         if (len(self.files) + len(self.subdirs)) == 0:
             self.to_delete = not self.args.keep_empty_dirs
@@ -232,9 +231,9 @@ class DirObj():
         within.
         """
         bytes = 0
-        for name, d in self.subdirs.iteritems():
+        for _, d in self.subdirs.items():
             bytes = bytes + d.count_bytes(to_delete)
-        for name, f in self.files.iteritems():
+        for _, f in self.files.items():
             if f.to_delete and to_delete:
                 bytes = bytes + f.count_bytes(to_delete)
             elif not f.to_delete and not to_delete:
@@ -248,9 +247,9 @@ class DirObj():
             to_delete = 1
         else:
             to_delete = 0
-        for name, d in self.subdirs.iteritems():
+        for name, d in self.subdirs.items():
             to_delete = to_delete + d.count_deleted()
-        for name, f in self.files.iteritems():
+        for name, f in self.files.items():
             if f.to_delete:
                 to_delete = to_delete + 1
         return to_delete
