@@ -86,7 +86,7 @@ class EntryList:
                                             parent = dir_entry,
                                             weight_adjust = weight_adjust)
                             if new_file.bytes == 0 and not args.keep_empty_files:
-                                new_file.deleted = True
+                                new_file.to_delete = True
                             dir_entry.files[fname]=new_file
                 if args.stagger_paths:
                     stagger = top_dir_entry.max_depth()
