@@ -232,7 +232,20 @@ def generate_reports(all_files):
 if __name__ == '__main__':
     start_time = time.time()
     desc="generate commands to eliminate redundant files and directories"
-    parser = argparse.ArgumentParser(description=desc)
+    afterword="""
+Simplest Example:
+ # Step one - generate a shell script named "remove_commands.sh"
+ dedup.py some_path/ > remove_commands.sh
+
+ # Step two - review the script to make sure everything is safe:
+ less remove_commands.sh
+
+ # Step Three - run the script:
+ sh remove_commands.sh
+"""
+    parser = argparse.ArgumentParser(description=desc,
+                epilog=afterword,
+                formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("-c", "--clean-database", action="store_true",
                     help="clean hash cache instead of normal operation")
     parser.add_argument("-d", "--database",
