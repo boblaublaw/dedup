@@ -13,8 +13,8 @@ DELETE_DIR_LIST = [
     ".git",
     ".svn",
     ".dropbox.cache",
-    "__MACOSX" ]
- 
+    "__MACOSX"]
+
 # This list describes files and directories we do not want to risk
 # messing with.  If we encounter these, never mark them for deletion.
 # TODO - implement this
@@ -25,6 +25,7 @@ class DirObj():
     """A directory object which can hold metadata and references to
     files and subdirectories.
     """
+
     def __init__(self, name, args, weight_adjust=0, parent=None):
         self.name = name
         self.args = args
@@ -45,7 +46,7 @@ class DirObj():
         # confirm that the pathname starts with "test"
         if self.to_delete:
             if self.pathname[:6] != "tests/":
-                print ('something has gone catastrophically wrong in DirObj.test_delete')
+                print('something has gone catastrophically wrong in DirObj.test_delete')
                 sys.exit(-1)
             else:
                 if self.args.verbosity > 0:
@@ -96,7 +97,7 @@ class DirObj():
             x = input_dir_list.pop(0)
             y = name_list.pop(0)
             if x != y:
-                print (x + ' and ' + y + ' do not match')
+                print(x + ' and ' + y + ' do not match')
                 raise LookupError
             if x in DELETE_DIR_LIST:
                 return None
@@ -106,13 +107,13 @@ class DirObj():
 
         next_dir_name = input_dir_list[0]
         if next_dir_name in self.subdirs:
-            tmp_name= os.path.join(*input_dir_list)
+            tmp_name = os.path.join(*input_dir_list)
             tmp_sub = self.subdirs[next_dir_name]
             return tmp_sub.place_dir(tmp_name, weight_adjust)
 
-        #print "did not find " + next_dir_name + " in " + self.name
+        # print "did not find " + next_dir_name + " in " + self.name
         next_dir = DirObj(next_dir_name, self.args, weight_adjust, self)
-        self.subdirs[next_dir_name]=next_dir
+        self.subdirs[next_dir_name] = next_dir
         return next_dir.place_dir(os.path.join(*input_dir_list), weight_adjust)
 
     # DirObj.dirwalk
@@ -146,7 +147,7 @@ class DirObj():
 
         if self.to_delete:
             if self.winner is None:
-                # this is a cheat wherein I use a magic value to designate 
+                # this is a cheat wherein I use a magic value to designate
                 # empty dirs
                 if self.started_empty():
                     started_empty_report['___started_empty___'].append(self)

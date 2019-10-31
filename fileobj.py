@@ -3,9 +3,11 @@
 import os
 from hashdbobj import compute_hash
 
+
 class FileObj():
     """A file object which stores some metadata"""
-    def __init__(self, name, args, db, parent=None, weight_adjust = 0):
+
+    def __init__(self, name, args, db, parent=None, weight_adjust=0):
         self.name = name
         self.args = args
         self.db = db
@@ -41,7 +43,7 @@ class FileObj():
     def test_delete(self):
         if self.to_delete:
             if self.pathname[:6] != "tests/":
-                print ('something has gone catastrophically wrong in FileObj.test_delete')
+                print('something has gone catastrophically wrong in FileObj.test_delete')
                 sys.exit(-1)
             else:
                 if self.args.verbosity > 0:
@@ -71,8 +73,8 @@ class FileObj():
             return
         # just a trivial check to confirm hash matches:
         if self.bytes != self.winner.bytes:
-            print ('# BIRTHDAY LOTTERY CRISIS!')
-            print ('# matched hashes and mismatched sizes!')
+            print('# BIRTHDAY LOTTERY CRISIS!')
+            print('# matched hashes and mismatched sizes!')
             sys.exit(-1)
         loser_list = file_report[self.winner.abspathname]
         loser_list.append(self)
@@ -90,16 +92,16 @@ class FileObj():
         within
         """
         if self.to_delete and to_delete:
-             return self.bytes
+            return self.bytes
         elif not self.to_delete and not to_delete:
             return self.bytes
-        return 0 
+        return 0
 
     # FileObj.count_deleted
     def count_deleted(self):
         """Returns a count of all the deleted objects within"""
         if self.to_delete:
-             return 1
+            return 1
         else:
             return 0
 

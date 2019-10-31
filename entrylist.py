@@ -20,7 +20,8 @@ DELETE_FILE_LIST = [
     ".DS_Store",
     "desktop.ini",
     ".dropbox.attr",
-    ".typeAttributes.dict" ]
+    ".typeAttributes.dict"]
+
 
 def issocket(path):
     """For some reason python provides isfile and isdirectory but not
@@ -29,6 +30,7 @@ def issocket(path):
     mode = os.stat(path).st_mode
     return stat.S_ISSOCK(mode)
 
+
 def check_int(s):
     """helper function that returns true if you pass in a string that
     represents an integer
@@ -36,6 +38,7 @@ def check_int(s):
     if s[0] in ('-', '+'):
         return s[1:].isdigit()
     return s.isdigit()
+
 
 def check_level(pathname):
     """inspects a pathname for a weight prefix on the front.  This
@@ -51,8 +54,10 @@ def check_level(pathname):
     # thing is a path without a weight prefix.
     return 0, pathname
 
+
 class EntryList:
     """A container for all source directories and files to examine"""
+
     def __init__(self, paths, db, args):
         self.contents = {}
         self.db = db
@@ -70,43 +75,44 @@ class EntryList:
             if os.path.isfile(path):
                 if args.stagger_paths:
                     weight_adjust = weight_adjust + stagger
-                new_file = FileObj(path, args, weight_adjust = weight_adjust)
+                new_file = FileObj(path, args, weight_adjust=weight_adjust)
                 if args.stagger_paths:
                     stagger = stagger + new_file.depth
                 self.contents[path] = new_file
             elif issocket(path):
-                print ('# Skipping a socket ' + entry)
+                print('# Skipping a socket ' + entry)
             elif os.path.isdir(path):
                 if args.stagger_paths:
                     weight_adjust = weight_adjust + stagger
                 top_dir_entry = DirObj(path, self.args, weight_adjust)
                 self.contents[path] = top_dir_entry
-                for dir_name, subdir_list, file_list in os.walk(path, topdown = False):
-                    # we do not walk into or add names from our ignore list.  
-                    # We wont delete them if they are leaf nodes and we wont 
+                for dir_name, subdir_list, file_list in os.walk(path, topdown=False):
+                    # we do not walk into or add names from our ignore list.
+                    # We wont delete them if they are leaf nodes and we wont
                     # count them towards parent nodes.
                     if os.path.basename(dir_name) in DELETE_DIR_LIST:
                         continue
 
-                    dir_entry = top_dir_entry.place_dir(dir_name, weight_adjust)
+                    dir_entry = top_dir_entry.place_dir(
+                        dir_name, weight_adjust)
                     if dir_entry is None:
                         continue
 
                     for fname in file_list:
                         pname = os.path.join(dir_entry.abspathname, fname)
                         if issocket(pname):
-                            print ('# Skipping a socket ' + pname)
+                            print('# Skipping a socket ' + pname)
                         elif os.path.basename(fname) not in DELETE_FILE_LIST:
                             new_file = FileObj(fname, args, db,
-                                            parent = dir_entry,
-                                            weight_adjust = weight_adjust)
+                                               parent=dir_entry,
+                                               weight_adjust=weight_adjust)
                             if new_file.bytes == 0 and not args.keep_empty_files:
                                 new_file.to_delete = True
-                            dir_entry.files[fname]=new_file
+                            dir_entry.files[fname] = new_file
                 if args.stagger_paths:
                     stagger = top_dir_entry.max_depth()
             else:
-                print ("# FATAL ERROR: dont know what this is: " + path)
+                print("# FATAL ERROR: dont know what this is: " + path)
                 sys.exit()
 
     # EntryList.testDeletes

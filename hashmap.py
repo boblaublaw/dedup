@@ -6,17 +6,20 @@ from fileobj import FileObj
 from dirobj import DirObj
 from operator import attrgetter
 
+
 def member_is_type(tuple, type):
     """for checking the type of a list member which is also packed in a 
     tuple. This function assumes all list members are the same type.
     """
-    list=tuple[1]
+    list = tuple[1]
     return isinstance(list[0], type)
+
 
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
+
     def __init__(self, all_files, args):
-        self.content_hash = defaultdict( lambda: [] )
+        self.content_hash = defaultdict(lambda: [])
         self.min_depth = 1
         self.max_depth = 0
         # we will use this later to count deletions:
@@ -56,7 +59,7 @@ class HashMap:
         """Removes deleted objects from the HashMap"""
         deleteList = []
         for hashval, list in self.content_hash.items():
-            trimmedList=[]
+            trimmedList = []
             for entry in list:
                 if entry.to_delete:
                     entry.mark_for_delete()
@@ -64,7 +67,7 @@ class HashMap:
                     trimmedList.append(entry)
             # store the trimmed list
             if len(trimmedList) > 0:
-                self.content_hash[hashval]=trimmedList
+                self.content_hash[hashval] = trimmedList
             else:
                 # if no more entries exist for this hashval,
                 # remove the entry from the dict:
@@ -88,7 +91,7 @@ class HashMap:
             return
 
         candidates.sort(
-            key=attrgetter('depth','abspathnamelen','abspathname'), 
+            key=attrgetter('depth', 'abspathnamelen', 'abspathname'),
             reverse=self.args.reverse_selection)
         winner = candidates.pop(0)
 
@@ -107,12 +110,12 @@ class HashMap:
                 if not candidate.to_delete:
                     candidate.mark_for_delete()
                     if self.args.verbosity > 0:
-                        s='# dir  "'
-                        if isinstance(candidate,DirObj):
+                        s = '# dir  "'
+                        if isinstance(candidate, DirObj):
                             s = s + candidate.abspathname
                         else:
                             s = s + candidate.abspathname
-                        print (s + '" covered by "' + winner.abspathname + '"')
+                        print(s + '" covered by "' + winner.abspathname + '"')
                     candidate.winner = winner
 
     # HashMap.resolve
@@ -123,7 +126,7 @@ class HashMap:
         prevCount = self.all_files.count_deleted()
 
         # no need to resolve uniques, so remove them from the HashMap
-        uniques=[]
+        uniques = []
         # you cannot modify a collection while iterating over it...
         for hashval, list in self.content_hash.items():
             if len(list) == 1:
@@ -137,29 +140,29 @@ class HashMap:
         #
         # This approach isn't strictly required but it results in fewer
         # calls to this function if we delete leaf nodes first, as it will
-        # allow non-leaf directories to match on subsequent calls to 
+        # allow non-leaf directories to match on subsequent calls to
         # resolve().
 
-        depths=range(self.min_depth - 1,self.max_depth + 1)
+        depths = range(self.min_depth - 1, self.max_depth + 1)
         if self.args.reverse_selection:
-            depths=reversed(depths)
+            depths = reversed(depths)
 
         if self.args.verbosity > 0:
-            print ('# checking candidates in dir depth order: ' + str(depths))
+            print('# checking candidates in dir depth order: ' + str(depths))
 
         for depthFilter in depths:
-            #print '# checking depth ' + str(depthFilter)
-            for hashval, candidates in filter(lambda x: 
-                    member_is_type(x,DirObj),self.content_hash.items()):
+            # print '# checking depth ' + str(depthFilter)
+            for hashval, candidates in filter(lambda x:
+                                              member_is_type(x, DirObj), self.content_hash.items()):
                 if self.args.reverse_selection:
-                    maybes = [x for x in candidates if x.depth < depthFilter ]
+                    maybes = [x for x in candidates if x.depth < depthFilter]
                 else:
-                    maybes = [x for x in candidates if x.depth > depthFilter ]
+                    maybes = [x for x in candidates if x.depth > depthFilter]
                 if len(maybes) > 0:
                     self.resolve_candidates(maybes)
             self.prune()
 
-        for hashval, candidates in filter(lambda x: member_is_type(x,FileObj),self.content_hash.items()):
+        for hashval, candidates in filter(lambda x: member_is_type(x, FileObj), self.content_hash.items()):
             self.resolve_candidates(candidates)
         self.prune()
 
