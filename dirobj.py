@@ -121,9 +121,9 @@ class DirObj():
         """A generator which traverses just subdirectories"""
         if topdown:
             yield self
-        for name, d in self.subdirs.items():
-            for dirEntry in d.dirwalk():
-                yield dirEntry
+        for _, d in self.subdirs.items():
+            for dir_entry in d.dirwalk():
+                yield dir_entry
         if not topdown:
             yield self
 
@@ -157,9 +157,9 @@ class DirObj():
                 loser_list = dir_report[self.winner.abspathname]
                 loser_list.append(self)
         else:
-            for file_name, file_entry in self.files.items():
+            for _, file_entry in self.files.items():
                 file_entry.generate_reports(reports)
-            for dirName, subdir in self.subdirs.items():
+            for _, subdir in self.subdirs.items():
                 subdir.generate_reports(reports)
 
     # DirObj.started_empty
@@ -178,11 +178,11 @@ class DirObj():
         ignored items won't protect a directory from being marked 
         for deletion.)
         """
-        for file_name, file_entry in self.files.items():
+        for _, file_entry in self.files.items():
             if not file_entry.to_delete:
                 return False
 
-        for dirName, subdir in self.subdirs.items():
+        for _, subdir in self.subdirs.items():
             if not subdir.to_delete and not subdir.is_empty():
                 return False
 
@@ -203,8 +203,8 @@ class DirObj():
                 and not self.parent.is_empty()):
             self.mark_for_delete()
         else:
-            for dirname, dirEntry in self.subdirs.items():
-                dirEntry.prune_empty()
+            for _, dir_entry in self.subdirs.items():
+                dir_entry.prune_empty()
 
     # DirObj.finalize
     def finalize(self):
@@ -215,8 +215,8 @@ class DirObj():
         digests = []
         for _, file_entry in self.files.items():
             digests.append(file_entry.hexdigest)
-        for _, dirEntry in self.subdirs.items():
-            digests.append(dirEntry.hexdigest)
+        for _, dir_entry in self.subdirs.items():
+            digests.append(dir_entry.hexdigest)
         digests.sort()
         #map(encode('utf-8'), digests)
         sha1 = hashlib.sha1()
@@ -248,9 +248,9 @@ class DirObj():
             to_delete = 1
         else:
             to_delete = 0
-        for name, d in self.subdirs.items():
+        for _, d in self.subdirs.items():
             to_delete = to_delete + d.count_deleted()
-        for name, f in self.files.items():
+        for _, f in self.files.items():
             if f.to_delete:
                 to_delete = to_delete + 1
         return to_delete

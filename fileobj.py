@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
 from hashdbobj import compute_hash
 
 
@@ -28,8 +29,8 @@ class FileObj():
         self.abspathnamelen = len(self.abspathname)
 
         stat_result = os.stat(self.abspathname)
-        self.modTime = stat_result.st_mtime
-        self.createTime = stat_result.st_ctime
+        self.mod_time = stat_result.st_mtime
+        self.create_time = stat_result.st_ctime
         self.bytes = stat_result.st_size
 
         if self.db is not None:

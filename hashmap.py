@@ -2,17 +2,17 @@
 
 #from __future__ import print_function
 from collections import defaultdict
+from operator import attrgetter
 from fileobj import FileObj
 from dirobj import DirObj
-from operator import attrgetter
 
 
-def member_is_type(tuple, type):
-    """for checking the type of a list member which is also packed in a 
+def member_is_type(tup, typ):
+    """for checking the type of a list member which is also packed in a
     tuple. This function assumes all list members are the same type.
     """
-    list = tuple[1]
-    return isinstance(list[0], type)
+    l = tup[1]
+    return isinstance(l[0], typ)
 
 
 class HashMap:
@@ -57,24 +57,24 @@ class HashMap:
     # HashMap.prune
     def prune(self):
         """Removes deleted objects from the HashMap"""
-        deleteList = []
-        for hashval, list in self.content_hash.items():
-            trimmedList = []
-            for entry in list:
+        delete_list = []
+        for hashval, l in self.content_hash.items():
+            trimmed_list = []
+            for entry in l:
                 if entry.to_delete:
                     entry.mark_for_delete()
                 else:
-                    trimmedList.append(entry)
+                    trimmed_list.append(entry)
             # store the trimmed list
-            if len(trimmedList) > 0:
-                self.content_hash[hashval] = trimmedList
+            if len(trimmed_list) > 0:
+                self.content_hash[hashval] = trimmed_list
             else:
                 # if no more entries exist for this hashval,
                 # remove the entry from the dict:
-                deleteList.append(hashval)
+                delete_list.append(hashval)
 
         # remove deleted items from the hash lookup dict:
-        for entry in deleteList:
+        for entry in delete_list:
             del self.content_hash[entry]
 
     # HashMap.resolve_candidates
@@ -123,13 +123,13 @@ class HashMap:
         """Compares all entries and where hash collisions exists, pick a
         keeper.
         """
-        prevCount = self.all_files.count_deleted()
+        prev_count = self.all_files.count_deleted()
 
         # no need to resolve uniques, so remove them from the HashMap
         uniques = []
         # you cannot modify a collection while iterating over it...
-        for hashval, list in self.content_hash.items():
-            if len(list) == 1:
+        for hashval, l in self.content_hash.items():
+            if len(l) == 1:
                 uniques.append(hashval)
         # ... so delete entries in a second pass.
         for entry in uniques:
@@ -150,14 +150,14 @@ class HashMap:
         if self.args.verbosity > 0:
             print('# checking candidates in dir depth order: ' + str(depths))
 
-        for depthFilter in depths:
-            # print '# checking depth ' + str(depthFilter)
+        for depth_filter in depths:
+            # print '# checking depth ' + str(depth_filter)
             for hashval, candidates in filter(lambda x:
                                               member_is_type(x, DirObj), self.content_hash.items()):
                 if self.args.reverse_selection:
-                    maybes = [x for x in candidates if x.depth < depthFilter]
+                    maybes = [x for x in candidates if x.depth < depth_filter]
                 else:
-                    maybes = [x for x in candidates if x.depth > depthFilter]
+                    maybes = [x for x in candidates if x.depth > depth_filter]
                 if len(maybes) > 0:
                     self.resolve_candidates(maybes)
             self.prune()
@@ -166,6 +166,6 @@ class HashMap:
             self.resolve_candidates(candidates)
         self.prune()
 
-        return self.all_files.count_deleted() - prevCount
+        return self.all_files.count_deleted() - prev_count
 
 # vim: set expandtab sw=4 ts=4:

@@ -3,7 +3,7 @@
 import os
 import stat
 from fileobj import FileObj
-from dirobj import DirObj, DELETE_DIR_LIST, DO_NOT_DELETE_LIST
+from dirobj import DirObj, DELETE_DIR_LIST
 
 # This list represents files that may linger in directories preventing
 # this algorithm from recognizing them as empty.  we mark them as
@@ -46,10 +46,10 @@ def check_level(pathname):
     """
     parts = pathname.split(':')
     if len(parts) > 1:
-        firstPart = parts.pop(0)
+        first_part = parts.pop(0)
         remainder = ':'.join(parts)
-        if check_int(firstPart):
-            return int(firstPart), remainder
+        if check_int(first_part):
+            return int(first_part), remainder
     # if anything goes wrong just fail back to assuming the whole
     # thing is a path without a weight prefix.
     return 0, pathname
@@ -86,7 +86,7 @@ class EntryList:
                     weight_adjust = weight_adjust + stagger
                 top_dir_entry = DirObj(path, self.args, weight_adjust)
                 self.contents[path] = top_dir_entry
-                for dir_name, subdir_list, file_list in os.walk(path, topdown=False):
+                for dir_name, _, file_list in os.walk(path, topdown=False):
                     # we do not walk into or add names from our ignore list.
                     # We wont delete them if they are leaf nodes and we wont
                     # count them towards parent nodes.
@@ -117,14 +117,14 @@ class EntryList:
 
     # EntryList.testDeletes
     def test_deletes(self):
-        for name, e in self.contents.items():
+        for _, e in self.contents.items():
             e.test_delete()
 
     # EntryList.count_bytes
     def count_bytes(self, deleted=False):
         """Returns a btyecount of all the (deleted) objects within"""
         bytes = 0
-        for name, e in self.contents.items():
+        for _, e in self.contents.items():
             bytes = bytes + e.count_bytes(deleted)
         return bytes
 
@@ -132,7 +132,7 @@ class EntryList:
     def count_deleted(self):
         """Returns a count of all the deleted objects within"""
         count = 0
-        for name, e in self.contents.items():
+        for _, e in self.contents.items():
             count = count + e.count_deleted()
         return count
 
@@ -141,10 +141,10 @@ class EntryList:
         """Flags all the children of the deleted objects within to also
         be deleted.
         """
-        prevCount = self.count_deleted()
+        prev_count = self.count_deleted()
         if not self.args.keep_empty_dirs:
             for _, e in self.contents.items():
                 e.prune_empty()
-        return self.count_deleted() - prevCount
+        return self.count_deleted() - prev_count
 
 # vim: set expandtab sw=4 ts=4:

@@ -35,12 +35,12 @@ class HashDbObj():
     def __init__(self, args):
         self.args = args
         try:
-            self.modTime = os.stat(self.args.database).st_mtime
+            self.mod_time = os.stat(self.args.database).st_mtime
         except OSError:
             print("# db " + self.args.database + " doesn't exist yet")
-            self.modTime = time.time()
+            self.mod_time = time.time()
         print('# db last modification time is ' +
-              str(time.time() - self.modTime) + ' seconds ago')
+              str(time.time() - self.mod_time) + ' seconds ago')
 
         try:
             import gdbm
@@ -70,7 +70,7 @@ class HashDbObj():
         """look up this path to see if it has already been computed"""
         if f.abspathname in self.db:
             # we've a cached hash value for this abspathname
-            if f.modTime > self.modTime:
+            if f.mod_time > self.mod_time:
                 # file is newer than db
                 pass
             else:

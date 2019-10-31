@@ -80,9 +80,9 @@ def synthesize_reports(report_map):
 
 def generate_map_commands(report, empty_report_names):
     winner_list = report['winner_list']
-    winCount = len(winner_list)
+    win_count = len(winner_list)
     # dont generate empty sections
-    if winCount == 0:
+    if win_count == 0:
         return
     report_name = report['report_name']
     total_marked_bytes = report['total_marked_bytes']
@@ -94,7 +94,7 @@ def generate_map_commands(report, empty_report_names):
         print('# This section could make ' +
               sizeof_fmt(total_marked_bytes) + ' of file data redundant\n')
     else:
-        print('# ' + report_name + ': ' + str(winCount) +
+        print('# ' + report_name + ': ' + str(win_count) +
               'to keep and ' + str(marked_count) + ' to remove')
         print('# This section could make ' +
               sizeof_fmt(total_marked_bytes) + ' of file data redundant\n')
@@ -150,9 +150,9 @@ def run_test(args, analyze, parser, test_name):
     # delete the redundant files and directories from the test dir hierarchy
     results.test_deletes()
     # compare tests/${test_name}/test with tests/${test_name}/after
-    testResult = os.system("diff --recursive --brief \"" +
+    test_result = os.system("diff --recursive --brief \"" +
                            ephemeral_dir + "\" \"" + after_dir + "\"")
-    if testResult == 0:
+    if test_result == 0:
         print('# PASSED ' + test_name)
         return 0
     else:
@@ -163,7 +163,7 @@ def run_test(args, analyze, parser, test_name):
 def run_tests(args, analyze, parser):
     # walk all the dirs under 'tests' dir:
     # TODO - should probably look at the script location instead of PWD
-    for dir_name, subdir_list, file_list in walklevel('tests', 0):
+    for _, subdir_list, _ in walklevel('tests', 0):
         subdir_list.sort()
         for test_name in subdir_list:
             if (-1 == run_test(args, analyze, parser, test_name)):
