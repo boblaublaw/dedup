@@ -4,7 +4,6 @@
 
 ### TODO ###
 
- * build unit test harness
  * 100% with 'coverage' 
  * pylint
  * port to python3
