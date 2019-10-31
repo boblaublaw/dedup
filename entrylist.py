@@ -49,47 +49,47 @@ class EntryList:
             path = path.rstrip(os.path.sep)
 
             # check if a weight has been provided for this argument
-            weightAdjust, entry = check_level(path)
+            weight_adjust, entry = check_level(path)
 
             if os.path.isfile(path):
                 if args.stagger_paths:
-                    weightAdjust = weightAdjust + stagger
-                newFile = FileObj(path, weightAdjust = weightAdjust)
+                    weight_adjust = weight_adjust + stagger
+                new_file = FileObj(path, args, weight_adjust = weight_adjust)
                 if args.stagger_paths:
-                    stagger = stagger + newFile.depth
-                self.contents[path] = newFile
+                    stagger = stagger + new_file.depth
+                self.contents[path] = new_file
             elif issocket(path):
                 print '# Skipping a socket ' + entry
             elif os.path.isdir(path):
                 if args.stagger_paths:
-                    weightAdjust = weightAdjust + stagger
-                topDirEntry = DirObj(path, self.args, weightAdjust)
-                self.contents[path] = topDirEntry
-                for dirName, subdirList, fileList in os.walk(path, topdown = False):
+                    weight_adjust = weight_adjust + stagger
+                top_dir_entry = DirObj(path, self.args, weight_adjust)
+                self.contents[path] = top_dir_entry
+                for dir_name, subdir_list, file_list in os.walk(path, topdown = False):
                     # we do not walk into or add names from our ignore list.  
                     # We wont delete them if they are leaf nodes and we wont 
                     # count them towards parent nodes.
-                    if os.path.basename(dirName) in DELETE_DIR_LIST:
+                    if os.path.basename(dir_name) in DELETE_DIR_LIST:
                         continue
 
-                    dirEntry = topDirEntry.place_dir(dirName, weightAdjust)
-                    if dirEntry is None:
+                    dir_entry = top_dir_entry.place_dir(dir_name, weight_adjust)
+                    if dir_entry is None:
                         continue
 
-                    for fname in fileList:
-                        pname = os.path.join(dirEntry.abspathname, fname)
+                    for fname in file_list:
+                        pname = os.path.join(dir_entry.abspathname, fname)
                         if issocket(pname):
                             print '# Skipping a socket',
                             print pname
                         elif os.path.basename(fname) not in DELETE_FILE_LIST:
-                            newFile = FileObj(fname, db,
-                                            parent = dirEntry,
-                                            weightAdjust = weightAdjust)
-                            if newFile.bytes == 0 and not args.keep_empty_files:
-                                newFile.deleted = True
-                            dirEntry.files[fname]=newFile
+                            new_file = FileObj(fname, args, db,
+                                            parent = dir_entry,
+                                            weight_adjust = weight_adjust)
+                            if new_file.bytes == 0 and not args.keep_empty_files:
+                                new_file.deleted = True
+                            dir_entry.files[fname]=new_file
                 if args.stagger_paths:
-                    stagger = topDirEntry.max_depth()
+                    stagger = top_dir_entry.max_depth()
             else:
                 print "I don't know what this is" + path
                 sys.exit()

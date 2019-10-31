@@ -6,29 +6,30 @@ from hashdbobj import compute_hash
 
 class FileObj():
     """A file object which stores some metadata"""
-    def __init__(self, name, db, parent=None, weightAdjust = 0):
+    def __init__(self, name, args, db, parent=None, weight_adjust = 0):
         self.name = name
+        self.args = args
         self.db = db
         self.winner = None
         self.parent = parent
-        self.weightAdjust = weightAdjust
+        self.weight_adjust = weight_adjust
 
         if self.parent is not None:
             ancestry = self.parent.get_lineage()
             ancestry.append(self.name)
             self.pathname = os.path.join(*ancestry)
-            self.depth = len(ancestry) + self.weightAdjust
+            self.depth = len(ancestry) + self.weight_adjust
         else:
             self.pathname = self.name
-            self.depth = self.weightAdjust
+            self.depth = self.weight_adjust
 
         self.abspathname = os.path.abspath(self.pathname)
         self.abspathnamelen = len(self.abspathname)
 
-        statResult = os.stat(self.abspathname)
-        self.modTime = statResult.st_mtime
-        self.createTime = statResult.st_ctime
-        self.bytes = statResult.st_size
+        stat_result = os.stat(self.abspathname)
+        self.modTime = stat_result.st_mtime
+        self.createTime = stat_result.st_ctime
+        self.bytes = stat_result.st_size
 
         if self.db is not None:
             self.hexdigest = self.db.lookup_hash(self)
@@ -40,11 +41,13 @@ class FileObj():
     # TODO increase protections against mistakes here
     def test_delete(self):
         if self.to_delete:
-            print("# deleting file " + self.pathname)
             if self.pathname[:6] != "tests/":
                 print 'something has gone catastrophically wrong in FileObj.test_delete'
                 sys.exit(-1)
-            os.remove(self.pathname)
+            else:
+                if self.args.verbosity > 0:
+                    print("# deleting file " + self.pathname)
+                os.remove(self.pathname)
 
     # FileObj.max_depth
     def max_depth(self):
@@ -57,23 +60,23 @@ class FileObj():
 
     # FileObj.generate_reports
     def generate_reports(self, reports):
-        fileReport = reports['files']
-        emptyReport = reports['empty files']
+        file_report = reports['files']
+        empty_report = reports['empty files']
         """Generates delete commands to dedup all contents"""
         if not self.to_delete:
             return
-        # this is a cheat wherein I use the emptyReport as a list of keys
+        # this is a cheat wherein I use the empty_report as a list of keys
         # and I disregard the values
         if self.winner is None:
-            emptyReport['___empty___'].append(self)
+            empty_report['___empty___'].append(self)
             return
         # just a trivial check to confirm hash matches:
         if self.bytes != self.winner.bytes:
             print '# BIRTHDAY LOTTERY CRISIS!'
             print '# matched hashes and mismatched sizes!'
             sys.exit(-1)
-        loserList = fileReport[self.winner.abspathname]
-        loserList.append(self)
+        loser_list = file_report[self.winner.abspathname]
+        loser_list.append(self)
 
     # FileObj.prune_empty
     def prune_empty(self):

@@ -16,31 +16,31 @@ def member_is_type(tuple, type):
 
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
-    def __init__(self, allFiles, args):
-        self.contentHash = defaultdict( lambda: [] )
-        self.minDepth = 1
-        self.maxDepth = 0
+    def __init__(self, all_files, args):
+        self.content_hash = defaultdict( lambda: [] )
+        self.min_depth = 1
+        self.max_depth = 0
         # we will use this later to count deletions:
-        self.allFiles = allFiles
+        self.all_files = all_files
         # reference to launch instructions
         self.args = args
 
-        for _, e in allFiles.contents.iteritems():
+        for _, e in all_files.contents.iteritems():
             if isinstance(e, FileObj):
                 self.add_entry(e)
             else:
-                for dirEntry in ifilter(
+                for dir_entry in ifilter(
                         lambda x: x.to_delete is False,
                         e.dirwalk()):
-                    for _, fileEntry in ifilter(
+                    for _, file_entry in ifilter(
                             lambda x: x[1].to_delete is False,
-                            dirEntry.files.iteritems()):
-                        self.add_entry(fileEntry)
-                    dirEntry.finalize()
-                    self.add_entry(dirEntry)
+                            dir_entry.files.iteritems()):
+                        self.add_entry(file_entry)
+                    dir_entry.finalize()
+                    self.add_entry(dir_entry)
             maxd = e.max_depth()
-            if self.maxDepth < maxd:
-                self.maxDepth = maxd
+            if self.max_depth < maxd:
+                self.max_depth = maxd
 
     # HashMap.add_entry
     def add_entry(self, entry):
@@ -48,15 +48,15 @@ class HashMap:
         hash, and then further appended to a list of other entries
         with the same hash.
         """
-        self.contentHash[entry.hexdigest].append(entry)
-        if entry.depth < self.minDepth:
-            self.minDepth = entry.depth
+        self.content_hash[entry.hexdigest].append(entry)
+        if entry.depth < self.min_depth:
+            self.min_depth = entry.depth
 
     # HashMap.prune
     def prune(self):
         """Removes deleted objects from the HashMap"""
         deleteList = []
-        for hashval, list in self.contentHash.iteritems():
+        for hashval, list in self.content_hash.iteritems():
             trimmedList=[]
             for entry in list:
                 if entry.to_delete:
@@ -65,7 +65,7 @@ class HashMap:
                     trimmedList.append(entry)
             # store the trimmed list
             if len(trimmedList) > 0:
-                self.contentHash[hashval]=trimmedList
+                self.content_hash[hashval]=trimmedList
             else:
                 # if no more entries exist for this hashval,
                 # remove the entry from the dict:
@@ -73,7 +73,7 @@ class HashMap:
 
         # remove deleted items from the hash lookup dict:
         for entry in deleteList:
-            del self.contentHash[entry]
+            del self.content_hash[entry]
 
     # HashMap.resolve_candidates
     def resolve_candidates(self, candidates):
@@ -120,17 +120,17 @@ class HashMap:
         """Compares all entries and where hash collisions exists, pick a
         keeper.
         """
-        prevCount = self.allFiles.count_deleted()
+        prevCount = self.all_files.count_deleted()
 
         # no need to resolve uniques, so remove them from the HashMap
         uniques=[]
         # you cannot modify a collection while iterating over it...
-        for hashval, list in self.contentHash.iteritems():
+        for hashval, list in self.content_hash.iteritems():
             if len(list) == 1:
                 uniques.append(hashval)
         # ... so delete entries in a second pass.
         for entry in uniques:
-            del self.contentHash[entry]
+            del self.content_hash[entry]
 
         # delete the directories first, in order of (de/in)creasing depth,
         # depending on the reverse_selection setting.
@@ -140,7 +140,7 @@ class HashMap:
         # allow non-leaf directories to match on subsequent calls to 
         # resolve().
 
-        depths=range(self.minDepth-1,self.maxDepth+1)
+        depths=range(self.min_depth-1,self.max_depth+1)
         if self.args.reverse_selection:
             depths.reverse()
         if self.args.verbosity > 0:
@@ -150,7 +150,7 @@ class HashMap:
         for depthFilter in depths:
             #print '# checking depth ' + str(depthFilter)
             for hashval, candidates in ifilter(lambda x: 
-                    member_is_type(x,DirObj),self.contentHash.iteritems()):
+                    member_is_type(x,DirObj),self.content_hash.iteritems()):
                 if self.args.reverse_selection:
                     maybes = [x for x in candidates if x.depth < depthFilter ]
                 else:
@@ -159,10 +159,10 @@ class HashMap:
                     self.resolve_candidates(maybes)
             self.prune()
 
-        for hashval, candidates in ifilter(lambda x: member_is_type(x,FileObj),self.contentHash.iteritems()):
+        for hashval, candidates in ifilter(lambda x: member_is_type(x,FileObj),self.content_hash.iteritems()):
             self.resolve_candidates(candidates)
         self.prune()
 
-        return self.allFiles.count_deleted() - prevCount
+        return self.all_files.count_deleted() - prevCount
 
 # vim: set expandtab sw=4 ts=4:

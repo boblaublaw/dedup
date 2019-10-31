@@ -43,20 +43,20 @@ class DirObj():
     """A directory object which can hold metadata and references to
     files and subdirectories.
     """
-    def __init__(self, name, args, weightAdjust=0, parent=None):
+    def __init__(self, name, args, weight_adjust=0, parent=None):
         self.name = name
         self.args = args
         self.files = {}
         self.to_delete = False
         self.winner = None
         self.subdirs = {}
-        self.weightAdjust = weightAdjust
+        self.weight_adjust = weight_adjust
         self.parent = parent
         ancestry = self.get_lineage()
         self.pathname = os.path.join(*ancestry)
         self.abspathname = os.path.abspath(self.pathname)
         self.abspathnamelen = len(self.abspathname)
-        self.depth = len(ancestry) + self.weightAdjust
+        self.depth = len(ancestry) + self.weight_adjust
 
     # DirObj.testDelete
     def test_delete(self):
@@ -66,7 +66,8 @@ class DirObj():
                 print 'something has gone catastrophically wrong in DirObj.test_delete'
                 sys.exit(-1)
             else:
-                print("# deleting dir " + self.pathname)
+                if self.args.verbosity > 0:
+                    print("# deleting dir " + self.pathname)
                 shutil.rmtree(self.pathname)
         else:
             for _, s in self.subdirs.iteritems():
@@ -102,35 +103,35 @@ class DirObj():
             return md
 
     # DirObj.place_dir
-    def place_dir(self, inputDirName, weightAdjust):
+    def place_dir(self, input_dir_name, weight_adjust):
         """Matches a pathname to a directory structure and returns a
         DirObj object.
         """
-        inputDirList = inputDirName.split(os.path.sep)
-        nameList = self.name.split(os.path.sep)
+        input_dir_list = input_dir_name.split(os.path.sep)
+        name_list = self.name.split(os.path.sep)
 
-        while (len(inputDirList) and len(nameList)):
-            x = inputDirList.pop(0)
-            y = nameList.pop(0)
+        while (len(input_dir_list) and len(name_list)):
+            x = input_dir_list.pop(0)
+            y = name_list.pop(0)
             if x != y:
                 print x + ' and ' + y + ' do not match'
                 raise LookupError
             if x in DELETE_DIR_LIST:
                 return None
 
-        if len(inputDirList) == 0:
+        if len(input_dir_list) == 0:
             return self
 
-        nextDirName = inputDirList[0]
-        if nextDirName in self.subdirs:
-            tmpName= os.path.join(*inputDirList)
-            tmpSub = self.subdirs[nextDirName]
-            return tmpSub.place_dir(tmpName, weightAdjust)
+        next_dir_name = input_dir_list[0]
+        if next_dir_name in self.subdirs:
+            tmp_name= os.path.join(*input_dir_list)
+            tmp_sub = self.subdirs[next_dir_name]
+            return tmp_sub.place_dir(tmp_name, weight_adjust)
 
-        #print "did not find " + nextDirName + " in " + self.name
-        nextDir = DirObj(nextDirName, self.args, weightAdjust, self)
-        self.subdirs[nextDirName]=nextDir
-        return nextDir.place_dir(os.path.join(*inputDirList), weightAdjust)
+        #print "did not find " + next_dir_name + " in " + self.name
+        next_dir = DirObj(next_dir_name, self.args, weight_adjust, self)
+        self.subdirs[next_dir_name]=next_dir
+        return next_dir.place_dir(os.path.join(*input_dir_list), weight_adjust)
 
     # DirObj.dirwalk
     def dirwalk(self, topdown=False):
@@ -157,24 +158,24 @@ class DirObj():
         """Populates several "reports" that describe duplicated
         directories, files, as well as empty directories and files
         """
-        dirReport = reports['directories']
-        emptyReport = reports['directories that are empty after reduction']
-        startedEmptyReport = reports['directories that started empty']
+        dir_report = reports['directories']
+        empty_report = reports['directories that are empty after reduction']
+        started_empty_report = reports['directories that started empty']
 
         if self.to_delete:
             if self.winner is None:
                 # this is a cheat wherein I use a magic value to designate 
                 # empty dirs
                 if self.started_empty():
-                    startedEmptyReport['___started_empty___'].append(self)
+                    started_empty_report['___started_empty___'].append(self)
                 else:
-                    emptyReport['___empty___'].append(self)
+                    empty_report['___empty___'].append(self)
             else:
-                loserList = dirReport[self.winner.abspathname]
-                loserList.append(self)
+                loser_list = dir_report[self.winner.abspathname]
+                loser_list.append(self)
         else:
-            for fileName, fileEntry in self.files.iteritems():
-                fileEntry.generate_reports(reports)
+            for file_name, file_entry in self.files.iteritems():
+                file_entry.generate_reports(reports)
             for dirName, subdir in self.subdirs.iteritems():
                 subdir.generate_reports(reports)
 
@@ -194,8 +195,8 @@ class DirObj():
         ignored items won't protect a directory from being marked 
         for deletion.)
         """
-        for fileName, fileEntry in self.files.iteritems():
-            if not fileEntry.to_delete:
+        for file_name, file_entry in self.files.iteritems():
+            if not file_entry.to_delete:
                 return False
 
         for dirName, subdir in self.subdirs.iteritems():
@@ -229,8 +230,8 @@ class DirObj():
         test for directories which have the same contents.
         """
         digests = []
-        for filename, fileEntry in self.files.iteritems():
-            digests.append(fileEntry.hexdigest)
+        for file_name, file_entry in self.files.iteritems():
+            digests.append(file_entry.hexdigest)
         for dirname, dirEntry in self.subdirs.iteritems():
             digests.append(dirEntry.hexdigest)
         digests.sort()
