@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
 import hashlib
 import time
 
@@ -27,9 +28,7 @@ def compute_hash(pathname):
             if not data:
                 break
             sha1.update(data)
-    digest = sha1.hexdigest()
-    return digest
-
+    return sha1.hexdigest()
 
 class HashDbObj():
     def __init__(self, args):
@@ -53,6 +52,7 @@ class HashDbObj():
             except ImportError:
                 print '# no dbm implementation found!'
                 sys.exit(-1)
+
         print '# set to use database ' + self.args.database,
         print 'of type: ' + self.db_type
 
@@ -83,6 +83,12 @@ class HashDbObj():
         # add/update the cached hash value for this entry:
         self.db[f.abspathname]=digest
         return digest
+
+    def nuke(self):
+        """function to remove entire db"""
+        if self.args.verbosity > 0:
+            print '# removing the database before we begin...' + self.args.database
+        os.remove(self.args.database)
 
     def clean(self):
         """function to remove dead nodes from the hash db"""

@@ -10,23 +10,6 @@ import hashlib
 # Python doesn't really have constants so I'll use ALLCAPS to indicate
 # that I do not expect these values to change. ¯\_(ツ)_/¯
 
-# This list represents files that may linger in directories preventing
-# this algorithm from recognizing them as empty.  we mark them as
-# deletable, even if we do NOT have other copies available:
-
-DELETE_FILE_LIST = [
-    "album.dat",
-    "album.dat.lock",
-    "photos.dat",
-    "photos.dat.lock",
-    "Thumbs.db",
-    ".lrprev",
-    "Icon\r",
-    ".DS_Store",
-    "desktop.ini",
-    ".dropbox.attr",
-    ".typeAttributes.dict" ]
-
 DELETE_DIR_LIST = [
     ".git",
     ".svn",

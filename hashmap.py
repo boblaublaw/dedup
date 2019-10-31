@@ -140,7 +140,7 @@ class HashMap:
         # allow non-leaf directories to match on subsequent calls to 
         # resolve().
 
-        depths=range(self.min_depth-1,self.max_depth+1)
+        depths=range(self.min_depth - 1,self.max_depth + 1)
         if self.args.reverse_selection:
             depths.reverse()
         if self.args.verbosity > 0:

@@ -110,9 +110,6 @@ def walklevel(some_dir, level=1):
         if num_sep + level <= num_sep_this:
             del dirs[:]
 
-def get_test_config(config_path):
-    pass
-
 def run_test(args, analyze, parser, test_name):
     print '# running test', test_name
     ephemeral_dir = 'tests' + os.path.sep + test_name + os.path.sep + 'ephemeral'
@@ -156,12 +153,13 @@ def run_tests(args, analyze, parser):
         for test_name in subdir_list:
             if (-1 == run_test(args, analyze, parser, test_name)):
                 return -1
+    ignore_this = sizeof_fmt(pow(1024,8))
     return 0
 
 # each command line invocation runs main once.
 # the run_tests() test harness will run main() several times.
 def analyze(args, paths):
-    if args.clean_database and db is None:
+    if args.clean_database and args.database is None:
         print '# database file must be specified for --clean-database',
         print 'command (use -d)'
         sys.exit(-1)
@@ -169,6 +167,14 @@ def analyze(args, paths):
     if len(paths) == 0 and args.stagger_paths:
         print '# -s/--stagger-paths specified, but no paths provided!'
         sys.exit(-1)
+
+    if args.nuke_database:
+        if args.verbosity > 0:
+            print '# removing the database before we begin...' + args.database
+        try:
+            os.remove(args.database)
+        except OSError:
+            pass # ignore errors because its ok if this doesn't exist
 
     db = None
     if args.database is not None:
@@ -230,22 +236,24 @@ if __name__ == '__main__':
     start_time = time.time()
     desc="generate commands to eliminate redundant files and directories"
     parser = argparse.ArgumentParser(description=desc)
-    parser.add_argument("-v", "--verbosity", action="count", default=0,
-                    help="increase output verbosity")
-    parser.add_argument("-d", "--database", 
-                    help="name of DBM file to use for hash cache")
     parser.add_argument("-c", "--clean-database", action="store_true",
                     help="clean hash cache instead of normal operation")
-    parser.add_argument("-s", "--stagger-paths", action="store_true",
-                    help="always prefer files in argument order")
-    parser.add_argument("-r", "--reverse-selection", action="store_true",
-                    help="reverse the dir/file selection choices")
-    parser.add_argument("-t", "--run-tests", action="store_true",
-                    help="run all the tests listed in 'test' subdir")
-    parser.add_argument("-f", "--keep-empty-files", action="store_true",
-                    help="do not delete empty files (default to false)")
+    parser.add_argument("-d", "--database",
+                    help="name of DBM file to use for hash cache")
     parser.add_argument("-e", "--keep-empty-dirs", action="store_true",
                     help="do not delete empty directories (default to false)")
+    parser.add_argument("-f", "--keep-empty-files", action="store_true",
+                    help="do not delete empty files (default to false)")
+    parser.add_argument("-n", "--nuke-database", action="store_true",
+                    help="delete the provided cache before starting")
+    parser.add_argument("-r", "--reverse-selection", action="store_true",
+                    help="reverse the dir/file selection choices")
+    parser.add_argument("-s", "--stagger-paths", action="store_true",
+                    help="always prefer files in argument order")
+    parser.add_argument("-t", "--run-tests", action="store_true",
+                    help="run all the tests listed in 'test' subdir")
+    parser.add_argument("-v", "--verbosity", action="count", default=0,
+                    help="increase output verbosity")
     args, paths = parser.parse_known_args()
 
     # requesting unit test execution discards all other options.

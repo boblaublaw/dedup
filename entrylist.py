@@ -4,7 +4,24 @@
 import os
 import stat
 from fileobj import FileObj
-from dirobj import DirObj, DELETE_FILE_LIST, DELETE_DIR_LIST, DO_NOT_DELETE_LIST
+from dirobj import DirObj, DELETE_DIR_LIST, DO_NOT_DELETE_LIST
+
+# This list represents files that may linger in directories preventing
+# this algorithm from recognizing them as empty.  we mark them as
+# deletable, even if we do NOT have other copies available:
+
+DELETE_FILE_LIST = [
+    "album.dat",
+    "album.dat.lock",
+    "photos.dat",
+    "photos.dat.lock",
+    "Thumbs.db",
+    ".lrprev",
+    "Icon\r",
+    ".DS_Store",
+    "desktop.ini",
+    ".dropbox.attr",
+    ".typeAttributes.dict" ]
 
 def issocket(path):
     """For some reason python provides isfile and isdirectory but not
@@ -91,7 +108,7 @@ class EntryList:
                 if args.stagger_paths:
                     stagger = top_dir_entry.max_depth()
             else:
-                print "I don't know what this is" + path
+                print "# FATAL ERROR: dont know what this is: " + path
                 sys.exit()
 
     # EntryList.testDeletes
