@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
 import os
 from hashdbobj import compute_hash
 
@@ -42,7 +43,7 @@ class FileObj():
     def test_delete(self):
         if self.to_delete:
             if self.pathname[:6] != "tests/":
-                print 'something has gone catastrophically wrong in FileObj.test_delete'
+                print ('something has gone catastrophically wrong in FileObj.test_delete')
                 sys.exit(-1)
             else:
                 if self.args.verbosity > 0:
@@ -72,8 +73,8 @@ class FileObj():
             return
         # just a trivial check to confirm hash matches:
         if self.bytes != self.winner.bytes:
-            print '# BIRTHDAY LOTTERY CRISIS!'
-            print '# matched hashes and mismatched sizes!'
+            print ('# BIRTHDAY LOTTERY CRISIS!')
+            print ('# matched hashes and mismatched sizes!')
             sys.exit(-1)
         loser_list = file_report[self.winner.abspathname]
         loser_list.append(self)

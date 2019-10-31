@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
 import os
 import sys
 import time
@@ -32,9 +33,9 @@ def generate_delete(filename):
     # characters that we will wrap with double quotes:
     delim_test_chars = set("'()")
     if any((c in delim_test_chars) for c in filename):
-        print 'rm -rf "' + filename + '"'
+        print('rm -rf "' + filename + '"')
     else:
-        print "rm -rf '" + filename + "'"
+        print("rm -rf '" + filename + "'")
 
 def synthesize_report(report):
     winner_list = []
@@ -81,22 +82,21 @@ def generate_map_commands(report, empty_report_names):
     total_marked_bytes = report['total_marked_bytes']
     marked_count = report['marked_count']
 
-    print "\n" + '#' * 72
+    print ("\n" + '#' * 72)
     if report_name in empty_report_names:
-        print '# ' + report_name + ': ' + str(marked_count) + ' to remove'
-        print '# This section could make ' + sizeof_fmt(total_marked_bytes) + ' of file data redundant\n'
+        print ('# ' + report_name + ': ' + str(marked_count) + ' to remove')
+        print ('# This section could make ' + sizeof_fmt(total_marked_bytes) + ' of file data redundant\n')
     else:
-        print '# ' + report_name + ': ' + str(winCount),
-        print 'to keep and ' + str(marked_count) + ' to remove'
-        print '# This section could make ' + sizeof_fmt(total_marked_bytes) + ' of file data redundant\n'
+        print ('# ' + report_name + ': ' + str(winCount) + 'to keep and ' + str(marked_count) + ' to remove')
+        print ('# This section could make ' + sizeof_fmt(total_marked_bytes) + ' of file data redundant\n')
 
     for winner in winner_list:
-        print "# This subsection could save " + sizeof_fmt(winner['total_marked_bytes'])
+        print ("# This subsection could save " + sizeof_fmt(winner['total_marked_bytes']))
         if report_name not in empty_report_names:
-            print "#      '" + winner['winner_name'] + "'" 
+            print ("#      '" + winner['winner_name'] + "'")
         for loser in winner['loser_list']:
             generate_delete(loser.abspathname)
-        print
+        print()
 
 # jacked from SO:
 #   https://stackoverflow.com/questions/229186/os-walk-without-digging-into-directories-below
@@ -111,7 +111,7 @@ def walklevel(some_dir, level=1):
             del dirs[:]
 
 def run_test(args, analyze, parser, test_name):
-    print '# running test', test_name
+    print ('# running test ' + test_name, file=sys.stdout)
     ephemeral_dir = 'tests' + os.path.sep + test_name + os.path.sep + 'ephemeral'
     before_dir = 'tests' + os.path.sep + test_name + os.path.sep + 'before'
     after_dir = 'tests' + os.path.sep + test_name + os.path.sep + 'after'
@@ -130,7 +130,7 @@ def run_test(args, analyze, parser, test_name):
         test_args = []
 
     if args.verbosity > 0:
-        print '# using opts ' + str(test_args)
+        print('# using opts ' + str(test_args))
     # dedup tests/${test_name}/test
     args = parser.parse_args(test_args)
     results = analyze(args, [ ephemeral_dir ])
@@ -139,10 +139,10 @@ def run_test(args, analyze, parser, test_name):
     # compare tests/${test_name}/test with tests/${test_name}/after
     testResult = os.system("diff --recursive --brief \"" + ephemeral_dir + "\" \"" + after_dir +"\"")
     if testResult == 0:
-        print '# PASSED ' + test_name
+        print ('# PASSED ' + test_name)
         return 0
     else:
-        print '# FAILED ' + test_name
+        print ('# FAILED ' + test_name)
         return -1
 
 def run_tests(args, analyze, parser):
@@ -154,23 +154,23 @@ def run_tests(args, analyze, parser):
             if (-1 == run_test(args, analyze, parser, test_name)):
                 return -1
     ignore_this = sizeof_fmt(pow(1024,8))
+    ignore_this = sizeof_fmt(1024)
     return 0
 
 # each command line invocation runs main once.
 # the run_tests() test harness will run main() several times.
 def analyze(args, paths):
     if args.clean_database and args.database is None:
-        print '# database file must be specified for --clean-database',
-        print 'command (use -d)'
+        print ('# database file must be specified for --clean-database command (use -d)')
         sys.exit(-1)
 
     if len(paths) == 0 and args.stagger_paths:
-        print '# -s/--stagger-paths specified, but no paths provided!'
+        print ('# -s/--stagger-paths specified, but no paths provided!')
         sys.exit(-1)
 
     if args.nuke_database:
         if args.verbosity > 0:
-            print '# removing the database before we begin...' + args.database
+            print ('# removing the database before we begin...' + args.database)
         try:
             os.remove(args.database)
         except OSError:
@@ -200,8 +200,7 @@ def analyze(args, paths):
             deleted = deleted_directories + deleted_hash_matches
             pass_count = pass_count + 1
             if deleted > 0:
-                print '# ' + str(deleted) + ' entries deleted on pass',
-                print str(pass_count)
+                print ('# ' + str(deleted) + ' entries deleted on pass ' + str(pass_count)) 
         return all_files
 
 def generate_reports(all_files):
@@ -227,10 +226,8 @@ def generate_reports(all_files):
         generate_map_commands(report, empty_report_names)
 
     end_time = time.time()
-    print '\n# total file data bytes marked for deletion',
-    print sizeof_fmt(all_files.count_bytes(deleted=True))
-    print '# total dedup running time: ' + str(end_time - start_time),
-    print 'seconds.'
+    print ('\n# total file data bytes marked for deletion ' + sizeof_fmt(all_files.count_bytes(deleted=True)))
+    print ('# total dedup running time: ' + str(end_time - start_time) + ' seconds.')
 
 if __name__ == '__main__':
     start_time = time.time()

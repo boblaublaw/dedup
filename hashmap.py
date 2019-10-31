@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
 from collections import defaultdict
 from fileobj import FileObj
 from dirobj import DirObj
@@ -108,11 +109,12 @@ class HashMap:
                 if not candidate.to_delete:
                     candidate.mark_for_delete()
                     if self.args.verbosity > 0:
+                        s='# dir  "'
                         if isinstance(candidate,DirObj):
-                            print '# dir  "' + candidate.abspathname,
+                            s = s + candidate.abspathname
                         else:
-                            print '# file "' + candidate.abspathname,
-                        print '" covered by "' + winner.abspathname + '"'
+                            s = s + candidate.abspathname
+                        print (s + '" covered by "' + winner.abspathname + '"')
                     candidate.winner = winner
 
     # HashMap.resolve
@@ -144,8 +146,7 @@ class HashMap:
         if self.args.reverse_selection:
             depths.reverse()
         if self.args.verbosity > 0:
-            print '# checking candidates in dir depth order:',
-            print str(depths)
+            print ('# checking candidates in dir depth order: ' + str(depths))
 
         for depthFilter in depths:
             #print '# checking depth ' + str(depthFilter)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
 import os
 import shutil
 import hashlib
@@ -46,7 +47,7 @@ class DirObj():
         # confirm that the pathname starts with "test"
         if self.to_delete:
             if self.pathname[:6] != "tests/":
-                print 'something has gone catastrophically wrong in DirObj.test_delete'
+                print ('something has gone catastrophically wrong in DirObj.test_delete')
                 sys.exit(-1)
             else:
                 if self.args.verbosity > 0:
@@ -97,7 +98,7 @@ class DirObj():
             x = input_dir_list.pop(0)
             y = name_list.pop(0)
             if x != y:
-                print x + ' and ' + y + ' do not match'
+                print (x + ' and ' + y + ' do not match')
                 raise LookupError
             if x in DELETE_DIR_LIST:
                 return None
