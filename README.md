@@ -2,15 +2,6 @@
 
 [![Join the chat at https://gitter.im/boblaublaw/dedup](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/boblaublaw/dedup?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-### TODO ###
-
- * 100% with 'coverage' 
- * pylint
- * port to python3
- * windows compatibility
- * package and distribute
- * add interactivity
-
 ### File and Directory Deduplication Tool ###
 
 This project has two goals:
@@ -41,27 +32,30 @@ sh commands.sh                                                  # execute cmds
 Where path can be any file or directory with an optional weight prefix.
 
 Where options can be:
- * -v/--verbose                         - show some rationale
- * -s/--stagger-paths                   - prefer input arguments from left to 
-                                          right.  (automatically weight each
-                                          argument to prevent overlap.)
- * -d/--database path_to_db_file        - cache hash results in a database for 
-                                          faster re-runs on large dirs. (When
-                                          specifying a pathname, do not supply
-                                          the .db extension.  anydbm adds this
-                                          on its own.)
- * -c/--clean-database                  - install of calculating digests and
-                                          eliminating duplicates, dedup will
-                                          check every file in the provided db
-                                          to check if it exists.  if it does not
-                                          exist in the filesystem, it is removed
-                                          from the db.
- * -r/--reverse-sort                    - reverse the comparison logic which
-                                          decides which files to keep and which
-                                          to mark for deletion.
+  -h, --help            show this help message and exit
+  -c, --clean-database  clean hash cache instead of normal operation
+  -d DATABASE, --database DATABASE
+                        name of DBM file to use for hash cache
+  -e, --keep-empty-dirs
+                        do not delete empty directories (default to false)
+  -f, --keep-empty-files
+                        do not delete empty files (default to false)
+  -n, --nuke-database   delete the provided cache before starting
+  -r, --reverse-selection
+                        reverse the dir/file selection choices
+  -s, --stagger-paths   always prefer files in argument order
+  -t, --run-tests       run all the tests listed in 'test' subdir
+  -v, --verbosity       increase output verbosity
 
 Simplest Example:
-     dedup.py path1 path2
+     # Step one - generate a shell script named "remove_commands.sh"
+     dedup.py some_path/ > remove_commands.sh
+
+     # Step two - review the script to make sure everything is safe:
+     less remove_commands.sh
+
+     # Step Three - run the script:
+     sh remove_commands.sh
 
 ```
 
@@ -71,7 +65,7 @@ Simplest Example:
 
 Comparing files for redundancy is comparatively trivial.  One could achieve deduplication by ignoring directories and removing empty directories afterwards.  However, this produces a larger number of output commands.  One recursive delete accomplishes the same goal with more readability.
 
-Thus, in cases where ```some_dir``` would be left empty after deduplication, this:
+Thus, in cases where ```some_dir``` would be empty after deduplication, this:
 ```
 rm -rf some_dir
 ```
@@ -81,7 +75,9 @@ rm some_dir/file1
 rm some_dir/file2
 ...
 rm some_dir/fileN
+rmdir some_dir
 ```
+Likewise, if a tree of nested directories are all empty of files after deduplicaton, the whole tree would be removed. (This can be disabled with the `-e` option.)
 
 ### Winner Selection Strategy
 
