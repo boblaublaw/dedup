@@ -45,13 +45,7 @@ class DirObj():
     def test_delete(self):
         # confirm that the pathname starts with "test"
         if self.to_delete:
-            if self.pathname[:6] != "tests/":
-                print('something has gone catastrophically wrong in DirObj.test_delete')
-                sys.exit(-1)
-            else:
-                if self.args.verbosity > 0:
-                    print("# deleting dir " + self.pathname)
-                shutil.rmtree(self.pathname)
+            shutil.rmtree(self.pathname)
         else:
             for _, s in self.subdirs.items():
                 s.test_delete()
@@ -97,8 +91,9 @@ class DirObj():
             x = input_dir_list.pop(0)
             y = name_list.pop(0)
             if x != y:
-                print(x + ' and ' + y + ' do not match')
-                raise LookupError
+                print('\nFATAL: ' + x + ' and ' + y +
+                      ' do not match', file=sys.stderr)
+                sys.exit(-1)
             if x in DELETE_DIR_LIST:
                 return None
 
@@ -111,7 +106,6 @@ class DirObj():
             tmp_sub = self.subdirs[next_dir_name]
             return tmp_sub.place_dir(tmp_name, weight_adjust)
 
-        # print "did not find " + next_dir_name + " in " + self.name
         next_dir = DirObj(next_dir_name, self.args, weight_adjust, self)
         self.subdirs[next_dir_name] = next_dir
         return next_dir.place_dir(os.path.join(*input_dir_list), weight_adjust)

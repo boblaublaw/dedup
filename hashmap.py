@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-#from __future__ import print_function
+import sys
 from collections import defaultdict
 from operator import attrgetter
 from fileobj import FileObj
@@ -18,10 +18,11 @@ def member_is_type(tup, typ):
 class HashMap:
     """A wrapper to a python dict with some helper functions"""
 
-    def __init__(self, all_files, args):
+    def __init__(self, all_files, args, outfile=sys.stdout):
         self.content_hash = defaultdict(lambda: [])
         self.min_depth = 1
         self.max_depth = 0
+        self.outfile = outfile
         # we will use this later to count deletions:
         self.all_files = all_files
         # reference to launch instructions
@@ -115,7 +116,8 @@ class HashMap:
                             s = s + candidate.abspathname
                         else:
                             s = s + candidate.abspathname
-                        print(s + '" covered by "' + winner.abspathname + '"')
+                        print(s + '" covered by "' +
+                              winner.abspathname + '"', file=self.outfile)
                     candidate.winner = winner
 
     # HashMap.resolve
@@ -148,10 +150,11 @@ class HashMap:
             depths = reversed(depths)
 
         if self.args.verbosity > 0:
-            print('# checking candidates in dir depth order: ' + str(depths))
+            print('# checking candidates in dir depth order: ' +
+                  str(depths), file=self.outfile)
 
         for depth_filter in depths:
-            # print '# checking depth ' + str(depth_filter)
+            print('# checking depth ' + str(depth_filter), file=self.outfile)
             for hashval, candidates in filter(lambda x:
                                               member_is_type(x, DirObj), self.content_hash.items()):
                 if self.args.reverse_selection:

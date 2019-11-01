@@ -80,7 +80,7 @@ class EntryList:
                     stagger = stagger + new_file.depth
                 self.contents[path] = new_file
             elif issocket(path):
-                print('# Skipping a socket ' + entry)
+                print('WARNING: Skipping a socket ' + entry, file=sys.stderr)
             elif os.path.isdir(path):
                 if args.stagger_paths:
                     weight_adjust = weight_adjust + stagger
@@ -101,7 +101,8 @@ class EntryList:
                     for fname in file_list:
                         pname = os.path.join(dir_entry.abspathname, fname)
                         if issocket(pname):
-                            print('# Skipping a socket ' + pname)
+                            print('WARNING: Skipping a socket ' +
+                                  pname, file=sys.stderr)
                         elif os.path.basename(fname) not in DELETE_FILE_LIST:
                             new_file = FileObj(fname, args, db,
                                                parent=dir_entry,
@@ -112,7 +113,8 @@ class EntryList:
                 if args.stagger_paths:
                     stagger = top_dir_entry.max_depth()
             else:
-                print("# FATAL ERROR: dont know what this is: " + path)
+                print("\nFATAL ERROR: dont know what this is: " +
+                      path, file=sys.stderr)
                 sys.exit()
 
     # EntryList.testDeletes

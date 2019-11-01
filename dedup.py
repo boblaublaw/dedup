@@ -27,23 +27,23 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
-def generate_delete(filename):
+def generate_delete(filename, outfile):
     """generates not-quite-safe rm commands.  TODO does not handle
     pathnames which contain both the ' and " characters.
     """
     # characters that we will wrap with double quotes:
     delim_test_chars = set("'()")
     if any((c in delim_test_chars) for c in filename):
-        print('rm -rf "' + filename + '"')
+        print('rm -rf "' + filename + '"', file=outfile)
     else:
-        print("rm -rf '" + filename + "'")
+        print("rm -rf '" + filename + "'", file=outfile)
 
 
-def synthesize_report(report):
+def synthesize_report(results):
     winner_list = []
     all_marked_bytes = 0
     all_marked_count = 0
-    for winner_name, loser_list in report.items():
+    for winner_name, loser_list in results.items():
         marked_count = len(loser_list)
         all_marked_count = all_marked_count + marked_count
         total_marked_bytes = 0
@@ -70,7 +70,10 @@ def synthesize_reports(report_map):
     for report_name, report in report_map.items():
         new_report = {}
         new_report['report_name'] = report_name
-        new_report['winner_list'], new_report['total_marked_bytes'], new_report['marked_count'] = synthesize_report(
+        win = 'winner_list'
+        total = 'total_marked_bytes'
+        marked = 'marked_count'
+        new_report[win], new_report[total], new_report[marked] = synthesize_report(
             report)
         report_list.append(new_report)
 
@@ -78,7 +81,7 @@ def synthesize_reports(report_map):
     return report_list
 
 
-def generate_map_commands(report, empty_report_names):
+def generate_map_commands(report, empty_report_names, outfile):
     winner_list = report['winner_list']
     win_count = len(winner_list)
     # dont generate empty sections
@@ -88,25 +91,25 @@ def generate_map_commands(report, empty_report_names):
     total_marked_bytes = report['total_marked_bytes']
     marked_count = report['marked_count']
 
-    print("\n" + '#' * 72)
+    print("\n" + '#' * 72, file=outfile)
     if report_name in empty_report_names:
-        print('# ' + report_name + ': ' + str(marked_count) + ' to remove')
+        print('# ' + report_name + ': ' +
+              str(marked_count) + ' to remove', file=outfile)
         print('# This section could make ' +
-              sizeof_fmt(total_marked_bytes) + ' of file data redundant\n')
+              sizeof_fmt(total_marked_bytes) + ' of file data redundant\n', file=outfile)
     else:
-        print('# ' + report_name + ': ' + str(win_count) +
-              'to keep and ' + str(marked_count) + ' to remove')
+        print('# ' + report_name + ' : ' + str(win_count) +
+              ' to keep and ' + str(marked_count) + ' to remove', file=outfile)
         print('# This section could make ' +
-              sizeof_fmt(total_marked_bytes) + ' of file data redundant\n')
+              sizeof_fmt(total_marked_bytes) + ' of file data redundant\n', file=outfile)
 
     for winner in winner_list:
         print("# This subsection could save " +
-              sizeof_fmt(winner['total_marked_bytes']))
+              sizeof_fmt(winner['total_marked_bytes']), file=outfile)
         if report_name not in empty_report_names:
-            print("#      '" + winner['winner_name'] + "'")
+            print("#      '" + winner['winner_name'] + "'", file=outfile)
         for loser in winner['loser_list']:
-            generate_delete(loser.abspathname)
-        print()
+            generate_delete(loser.abspathname, outfile)
 
 # jacked from SO:
 #   https://stackoverflow.com/questions/229186/os-walk-without-digging-into-directories-below
@@ -123,12 +126,16 @@ def walklevel(some_dir, level=1):
             del dirs[:]
 
 
-def run_test(args, analyze, parser, test_name):
-    print('# running test ' + test_name, file=sys.stdout)
-    ephemeral_dir = 'tests' + os.path.sep + test_name + os.path.sep + 'ephemeral'
-    before_dir = 'tests' + os.path.sep + test_name + os.path.sep + 'before'
-    after_dir = 'tests' + os.path.sep + test_name + os.path.sep + 'after'
-    test_config_file = 'tests' + os.path.sep + test_name + os.path.sep + 'opts.json'
+def run_test(args, parser, test_name):
+    print('Running test ' + test_name + ': ', end="")
+    newpwd = 'tests' + os.path.sep + test_name + os.path.sep
+    os.chdir(newpwd)
+    ephemeral_dir = 'ephemeral'
+    before_dir = 'before'
+    after_dir = 'after'
+    test_config_filename = 'opts.json'
+    script_filename = 'ephemeral.sh'
+    scriptfile = open(script_filename, "w+")
 
     # unconditonally remove the ephemeral_dir
     shutil.rmtree(ephemeral_dir, ignore_errors=True)
@@ -138,35 +145,36 @@ def run_test(args, analyze, parser, test_name):
 
     # pull arguments out of tests/${test_name}/opts.json
     try:
-        test_args = loads(open(test_config_file).read())
+        test_args = loads(open(test_config_filename).read())
     except:
         test_args = []
 
-    if args.verbosity > 0:
-        print('# using opts ' + str(test_args))
     # dedup tests/${test_name}/test
     args = parser.parse_args(test_args)
-    results = analyze(args, [ephemeral_dir])
+    results = analyze(args, [ephemeral_dir], scriptfile)
     # delete the redundant files and directories from the test dir hierarchy
     results.test_deletes()
+    generate_reports(results, scriptfile)
     # compare tests/${test_name}/test with tests/${test_name}/after
     test_result = os.system("diff --recursive --brief \"" +
-                           ephemeral_dir + "\" \"" + after_dir + "\"")
+                            ephemeral_dir + "\" \"" + after_dir + "\"")
+    scriptfile.close()
+    os.remove(script_filename)
+    os.chdir('../..')
     if test_result == 0:
-        print('# PASSED ' + test_name)
+        print('PASSED')
         return 0
-    else:
-        print('# FAILED ' + test_name)
-        return -1
+    print('FAILED')
+    return -1
 
 
-def run_tests(args, analyze, parser):
+def run_tests(args, parser):
     # walk all the dirs under 'tests' dir:
     # TODO - should probably look at the script location instead of PWD
     for _, subdir_list, _ in walklevel('tests', 0):
         subdir_list.sort()
         for test_name in subdir_list:
-            if (-1 == run_test(args, analyze, parser, test_name)):
+            if -1 == run_test(args, parser, test_name):
                 return -1
     ignore_this = sizeof_fmt(pow(1024, 8))
     ignore_this = sizeof_fmt(1024)
@@ -176,7 +184,7 @@ def run_tests(args, analyze, parser):
 # the run_tests() test harness will run main() several times.
 
 
-def analyze(args, paths):
+def analyze(args, paths, outfile=sys.stdout):
     if args.clean_database and args.database is None:
         print('# database file must be specified for --clean-database command (use -d)')
         sys.exit(-1)
@@ -195,7 +203,7 @@ def analyze(args, paths):
 
     db = None
     if args.database is not None:
-        db = HashDbObj(args)
+        db = HashDbObj(args, outfile)
 
     if args.clean_database:
         db.clean()
@@ -208,21 +216,22 @@ def analyze(args, paths):
         # while things are still being removed, keep working:
         while deleted > 0:
             sys.stdout.flush()
-            h = HashMap(all_files, args)
+            h = HashMap(all_files, args, outfile)
             deleted_directories = all_files.prune_empty()
 
-            h = HashMap(all_files, args)
+            h = HashMap(all_files, args, outfile)
             deleted_hash_matches = h.resolve()
 
             deleted = deleted_directories + deleted_hash_matches
             pass_count = pass_count + 1
             if deleted > 0:
                 print('# ' + str(deleted) +
-                      ' entries deleted on pass ' + str(pass_count))
+                      ' entries deleted on pass ' + str(pass_count), file=outfile)
         return all_files
+    return None
 
 
-def generate_reports(all_files):
+def generate_reports(all_files, outfile=sys.stdout):
     # a list of report names we will generate.  Note that these are later
     # indexed elsewhere, so be careful renaming
     regular_report_names = ['directories', 'files']
@@ -242,13 +251,13 @@ def generate_reports(all_files):
     report_lists = synthesize_reports(report_maps)
 
     for report in report_lists:
-        generate_map_commands(report, empty_report_names)
+        generate_map_commands(report, empty_report_names, outfile)
 
     end_time = time.time()
     print('\n# total file data bytes marked for deletion ' +
-          sizeof_fmt(all_files.count_bytes(deleted=True)))
+          sizeof_fmt(all_files.count_bytes(deleted=True)), file=outfile)
     print('# total dedup running time: ' +
-          str(end_time - start_time) + ' seconds.')
+          str(end_time - start_time) + ' seconds.', file=outfile)
 
 
 if __name__ == '__main__':
@@ -290,7 +299,7 @@ Simplest Example:
 
     # requesting unit test execution discards all other options.
     if args.run_tests:
-        sys.exit(run_tests(args, analyze, parser))
+        sys.exit(run_tests(args, parser))
     else:
         results = analyze(args, paths)
         results.test_deletes()

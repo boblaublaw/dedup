@@ -43,13 +43,7 @@ class FileObj():
     # TODO increase protections against mistakes here
     def test_delete(self):
         if self.to_delete:
-            if self.pathname[:6] != "tests/":
-                print('something has gone catastrophically wrong in FileObj.test_delete')
-                sys.exit(-1)
-            else:
-                if self.args.verbosity > 0:
-                    print("# deleting file " + self.pathname)
-                os.remove(self.pathname)
+            os.remove(self.pathname)
 
     # FileObj.max_depth
     def max_depth(self):
@@ -74,8 +68,8 @@ class FileObj():
             return
         # just a trivial check to confirm hash matches:
         if self.bytes != self.winner.bytes:
-            print('# BIRTHDAY LOTTERY CRISIS!')
-            print('# matched hashes and mismatched sizes!')
+            print('\nFATAL: BIRTHDAY LOTTERY CRISIS!', file=sys.stderr)
+            print('FATAL: matched hashes and mismatched sizes!', file=sys.stderr)
             sys.exit(-1)
         loser_list = file_report[self.winner.abspathname]
         loser_list.append(self)

@@ -32,38 +32,41 @@ def compute_hash(pathname):
 
 
 class HashDbObj():
-    def __init__(self, args):
+    def __init__(self, args, outfile):
         self.args = args
+        self.outfile = outfile
         try:
             self.mod_time = os.stat(self.args.database).st_mtime
         except OSError:
-            print("# db " + self.args.database + " doesn't exist yet")
+            print("# db " + self.args.database +
+                  " doesn't exist yet", file=self.outfile)
             self.mod_time = time.time()
         print('# db last modification time is ' +
-              str(time.time() - self.mod_time) + ' seconds ago')
+              str(time.time() - self.mod_time) + ' seconds ago', file=self.outfile)
 
         try:
             import gdbm
             self.db_type = 'gdbm'
         except ImportError:
             self.db_type = 'anydbm'
-            print('# no gdbm implementation found, trying anydbm')
+            print('# no gdbm implementation found, trying anydbm', file=self.outfile)
             try:
                 import anydbm
             except ImportError:
-                print('# no dbm implementation found!')
+                print('\nFATAL: no dbm implementation found!', file=sys.stderr)
                 sys.exit(-1)
 
         print('# set to use database ' +
-              self.args.database + ' of type: ' + self.db_type)
-        print('# loading database ' + self.args.database)
+              self.args.database + ' of type: ' + self.db_type, file=self.outfile)
+        print('# loading database ' + self.args.database, file=self.outfile)
         try:
             if self.db_type == 'gdbm':
                 self.db = gdbm.open(self.args.database, 'c')
             elif self.db_type == 'anydbm':
                 self.db = anydbm.open(self.args.database, 'c')
         except:  # TODO name the exception here
-            print("# " + self.args.database + " could not be loaded")
+            print("\nFATAL: " + self.args.database +
+                  " could not be loaded", file=sys.stderr)
             sys.exit(-1)
 
     def lookup_hash(self, f):
@@ -78,7 +81,7 @@ class HashDbObj():
                 digest = self.db[f.abspathname]
                 if self.args.verbosity > 0:
                     print('# hash ' + digest + ' for ' +
-                          f.abspathname + ' already in db.')
+                          f.abspathname + ' already in db.', file=self.outfile)
                 return digest
         digest = compute_hash(f.abspathname)
         # add/update the cached hash value for this entry:
@@ -88,20 +91,22 @@ class HashDbObj():
     def clean(self):
         """function to remove dead nodes from the hash db"""
         if self.db_type != 'gdbm':
-            print('# non-gdbm databases (' + self.db_type +
-                  ') dont support the reorganize method!')
+            print('\nFATAL: non-gdbm databases (' + self.db_type +
+                  ') dont support the reorganize method!', file=sys.stderr)
             sys.exit(-1)
 
         start_time = time.time()
-        print('# Starting database clean...')
+        print('# Starting database clean...', file=self.outfile)
         # even though gdbm supports memory efficient iteration over
         # all keys, I want to order my traversal across similar
         # paths to leverage caching of directory files:
         all_keys = self.db.keys()
-        print('# finished loaded keys from ' + self.pathname)
+        print('# finished loaded keys from ' +
+              self.pathname, file=self.outfile)
         all_keys.sort()
-        print('# finished sorting keys from ' + self.pathname)
-        print('# deleting dead nodes')
+        print('# finished sorting keys from ' +
+              self.pathname, file=self.outfile)
+        print('# deleting dead nodes', file=self.outfile)
         miss_count = 0
         hit_count = 0
         for curr_key in all_keys:
@@ -118,13 +123,13 @@ class HashDbObj():
                 if self.args.verbosity > 0:
                     sys.stdout.write('.')
                     sys.stdout.flush()
-        print("# reorganizing " + self.pathname)
+        print("# reorganizing " + self.pathname, file=self.outfile)
         self.db.reorganize()
         self.db.sync()
         print('# done cleaning ' + self.pathname + ', removed ' +
-              str(miss_count) + ' dead nodes and kept ' + str(hit_count) + ' nodes!')
+              str(miss_count) + ' dead nodes and kept ' + str(hit_count) + ' nodes!', file=self.outfile)
         end_time = time.time()
         print('# Database clean complete after ' +
-              str(end_time - start_time) + 'seconds')
+              str(end_time - start_time) + 'seconds', file=self.outfile)
 
 # vim: set expandtab sw=4 ts=4:
