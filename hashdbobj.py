@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+"""
+    This module describes the HashDbObj and helper functions
+"""
+
 import os
 import sys
 import hashlib
@@ -32,6 +36,11 @@ def compute_hash(pathname):
 
 
 class HashDbObj():
+    """
+    The HashDbObj is a wrapper for a "dbm" cache file.
+    This object is used if the "-d" option is requested at invocation.
+    Two types of gdm caches are attempted, if neither is available, we fail.
+    """
     def __init__(self, args, outfile):
         self.args = args
         self.outfile = outfile
@@ -64,7 +73,7 @@ class HashDbObj():
                 self.db = gdbm.open(self.args.database, 'c')
             elif self.db_type == 'anydbm':
                 self.db = anydbm.open(self.args.database, 'c')
-        except:  # TODO name the exception here
+        except ModuleNotFoundError:
             print("\nFATAL: " + self.args.database +
                   " could not be loaded", file=sys.stderr)
             sys.exit(-1)
@@ -102,10 +111,10 @@ class HashDbObj():
         # paths to leverage caching of directory files:
         all_keys = self.db.keys()
         print('# finished loaded keys from ' +
-              self.pathname, file=self.outfile)
+              self.args.database, file=self.outfile)
         all_keys.sort()
         print('# finished sorting keys from ' +
-              self.pathname, file=self.outfile)
+              self.args.database, file=self.outfile)
         print('# deleting dead nodes', file=self.outfile)
         miss_count = 0
         hit_count = 0
@@ -123,11 +132,12 @@ class HashDbObj():
                 if self.args.verbosity > 0:
                     sys.stdout.write('.')
                     sys.stdout.flush()
-        print("# reorganizing " + self.pathname, file=self.outfile)
+        print("# reorganizing " + self.args.database, file=self.outfile)
         self.db.reorganize()
         self.db.sync()
-        print('# done cleaning ' + self.pathname + ', removed ' +
-              str(miss_count) + ' dead nodes and kept ' + str(hit_count) + ' nodes!', file=self.outfile)
+        print('# done cleaning ' + self.args.database + ', removed ' +
+              str(miss_count) + ' dead nodes and kept ' + str(hit_count) +
+              ' nodes!', file=self.outfile)
         end_time = time.time()
         print('# Database clean complete after ' +
               str(end_time - start_time) + 'seconds', file=self.outfile)

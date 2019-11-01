@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+    This is the 'main()' for this package.
+"""
+
 import os
 import sys
 import time
@@ -40,6 +44,7 @@ def generate_delete(filename, outfile):
 
 
 def synthesize_report(results):
+    """transforms a results object into a report structure"""
     winner_list = []
     all_marked_bytes = 0
     all_marked_count = 0
@@ -66,6 +71,8 @@ def synthesize_report(results):
 
 
 def synthesize_reports(report_map):
+    """transforms a results object into several report structures,
+    each of which reflects a category of file or dir to be deleted"""
     report_list = []
     for report_name, report in report_map.items():
         new_report = {}
@@ -82,6 +89,8 @@ def synthesize_reports(report_map):
 
 
 def generate_map_commands(report, empty_report_names, outfile):
+    """transforms an analyzer report into a script that can be
+    easily reviewed"""
     winner_list = report['winner_list']
     win_count = len(winner_list)
     # dont generate empty sections
@@ -111,11 +120,13 @@ def generate_map_commands(report, empty_report_names, outfile):
         for loser in winner['loser_list']:
             generate_delete(loser.abspathname, outfile)
 
-# jacked from SO:
-#   https://stackoverflow.com/questions/229186/os-walk-without-digging-into-directories-below
 
 
 def walklevel(some_dir, level=1):
+    """
+    helper function similar to os.walk but with a maxdepth param, taken from SO:
+    https://stackoverflow.com/questions/229186/os-walk-without-digging-into-directories-below
+    """
     some_dir = some_dir.rstrip(os.path.sep)
     assert os.path.isdir(some_dir)
     num_sep = some_dir.count(os.path.sep)
@@ -127,6 +138,14 @@ def walklevel(some_dir, level=1):
 
 
 def run_test(args, parser, test_name):
+    """
+    executes a single test via several steps:
+        1. remove cruft from previous executions.
+        2. duplicate a "before" dir into a temporary dir called "ephemeral".
+        3. analyze "ephemeral" and produce "ephemeral.sh".
+        4. run "ephemeral.sh" (which deletes files from "ephemeral").
+        5. compare "ephemeral" dir to the "after" dir, expecting no difference.
+    """
     print('Running test ' + test_name + ': ', end="")
     ephemeral_dir = 'ephemeral'
     before_dir = 'before'
@@ -144,7 +163,7 @@ def run_test(args, parser, test_name):
     # pull arguments out of tests/${test_name}/opts.json
     try:
         test_args = loads(open(test_config_filename).read())
-    except:
+    except OSError:
         test_args = []
 
     # dedup tests/${test_name}/test
@@ -164,8 +183,9 @@ def run_test(args, parser, test_name):
 
 
 def run_tests(args, parser):
-    # walk all the dirs under 'tests' dir:
-    # TODO - should probably look at the script location instead of PWD
+    """
+    walk all the dirs under 'tests' dir, treating each as a test case
+    """
     for _, subdir_list, _ in walklevel('tests', 0):
         subdir_list.sort()
         for test_name in subdir_list:
@@ -178,11 +198,12 @@ def run_tests(args, parser):
     ignore_this = sizeof_fmt(1024)
     return 0
 
-# each command line invocation runs main once.
-# the run_tests() test harness will run main() several times.
-
 
 def analyze(args, paths, outfile=sys.stdout):
+    """
+    analyze a list of paths for redundant files and directories.
+    return a "results" object.
+    """
     if args.clean_database and args.database is None:
         print('# database file must be specified for --clean-database command (use -d)')
         sys.exit(-1)
@@ -230,6 +251,11 @@ def analyze(args, paths, outfile=sys.stdout):
 
 
 def generate_reports(all_files, outfile=sys.stdout):
+    """
+    transforms an annotated structure describing all analyzed files and dirs
+    into a set of report structures, each of which reflects a category of
+    data to delete.
+    """
     # a list of report names we will generate.  Note that these are later
     # indexed elsewhere, so be careful renaming
     regular_report_names = ['directories', 'files']
@@ -299,9 +325,9 @@ Simplest Example:
     if args.run_tests:
         sys.exit(run_tests(args, parser))
     else:
-        results = analyze(args, paths)
-        if results != None:
-            generate_reports(results)
+        res = analyze(args, paths)
+        if res is not None:
+            generate_reports(res)
         sys.exit(0)
 
 # vim: set expandtab sw=4 ts=4:

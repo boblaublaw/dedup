@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+"""
+    This module describes the FileObj object
+"""
+
 import os
 import sys
 from hashdbobj import compute_hash
@@ -39,10 +43,6 @@ class FileObj():
             self.hexdigest = compute_hash(self.abspathname)
         self.to_delete = False
 
-    # FileObj.max_depth
-    def max_depth(self):
-        return self.depth
-
     # FileObj.delete
     def mark_for_delete(self):
         """Mark for deletion"""
@@ -50,9 +50,9 @@ class FileObj():
 
     # FileObj.generate_reports
     def generate_reports(self, reports):
+        """Generates delete commands to dedup all contents"""
         file_report = reports['files']
         empty_report = reports['empty files']
-        """Generates delete commands to dedup all contents"""
         if not self.to_delete:
             return
         # this is a cheat wherein I use the empty_report as a list of keys
@@ -82,7 +82,7 @@ class FileObj():
         """
         if self.to_delete and to_delete:
             return self.bytes
-        elif not self.to_delete and not to_delete:
+        if not self.to_delete and not to_delete:
             return self.bytes
         return 0
 
@@ -91,7 +91,6 @@ class FileObj():
         """Returns a count of all the deleted objects within"""
         if self.to_delete:
             return 1
-        else:
-            return 0
+        return 0
 
 # vim: set expandtab sw=4 ts=4:

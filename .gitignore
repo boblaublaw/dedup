@@ -3,14 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# temporary files used by this script
+test.db
 ephemeral/
 ephemeral.sh
 
 # C extensions
 *.so
-
-# test database
-test.db
 
 # Distribution / packaging
 .Python

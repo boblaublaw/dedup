@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+"""
+    This module is for the HashMap class (and a static helper)
+"""
+
 import sys
 from collections import defaultdict
 from operator import attrgetter
@@ -8,7 +12,8 @@ from dirobj import DirObj
 
 
 def member_is_type(tup, typ):
-    """for checking the type of a list member which is also packed in a
+    """
+    for checking the type of a list member which is also packed in a
     tuple. This function assumes all list members are the same type.
     """
     l = tup[1]
@@ -16,8 +21,9 @@ def member_is_type(tup, typ):
 
 
 class HashMap:
-    """A wrapper to a python dict with some helper functions"""
-
+    """
+    A wrapper to a python dict with some helper functions
+    """
     def __init__(self, all_files, args, outfile=sys.stdout):
         self.content_hash = defaultdict(lambda: [])
         self.min_depth = 1
@@ -155,8 +161,8 @@ class HashMap:
 
         for depth_filter in depths:
             print('# checking depth ' + str(depth_filter), file=self.outfile)
-            for hashval, candidates in filter(lambda x:
-                                              member_is_type(x, DirObj), self.content_hash.items()):
+            for _, candidates in filter(lambda x:
+                                        member_is_type(x, DirObj), self.content_hash.items()):
                 if self.args.reverse_selection:
                     maybes = [x for x in candidates if x.depth < depth_filter]
                 else:
@@ -165,7 +171,9 @@ class HashMap:
                     self.resolve_candidates(maybes)
             self.prune()
 
-        for hashval, candidates in filter(lambda x: member_is_type(x, FileObj), self.content_hash.items()):
+        just_files = filter(lambda x: member_is_type(x, FileObj),
+                            self.content_hash.items())
+        for _, candidates in just_files:
             self.resolve_candidates(candidates)
         self.prune()
 

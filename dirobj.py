@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 
+"""
+    This module describes the DirObj object
+"""
+
+import sys
 import os
-import shutil
 import hashlib
 
 # CONSTANTS:
@@ -35,6 +39,7 @@ class DirObj():
         self.subdirs = {}
         self.weight_adjust = weight_adjust
         self.parent = parent
+        self.hexdigest = None
         ancestry = self.get_lineage()
         self.pathname = os.path.join(*ancestry)
         self.abspathname = os.path.abspath(self.pathname)
@@ -57,17 +62,16 @@ class DirObj():
     def max_depth(self):
         """Determine the deepest point from this directory"""
         md = self.depth
-        if len(self.subdirs.keys()):
+        if len(self.subdirs.keys()) > 0:
             for _, entry in self.subdirs.items():
                 if not entry.to_delete:
                     td = entry.max_depth()
                     if td > md:
                         md = td
             return md
-        elif len(self.files.keys()):
+        if len(self.files.keys()) > 0:
             return md + 1
-        else:
-            return md
+        return md
 
     # DirObj.place_dir
     def place_dir(self, input_dir_name, weight_adjust):
@@ -77,7 +81,7 @@ class DirObj():
         input_dir_list = input_dir_name.split(os.path.sep)
         name_list = self.name.split(os.path.sep)
 
-        while (len(input_dir_list) and len(name_list)):
+        while (len(input_dir_list) > 0) and (len(name_list) > 0):
             x = input_dir_list.pop(0)
             y = name_list.pop(0)
             if x != y:
@@ -157,9 +161,9 @@ class DirObj():
 
     # DirObj.is_empty
     def is_empty(self):
-        """Checks if the dir is currented marked as empty, ignoring 
-        items marked as deleted or ignored.  (In other words, 
-        ignored items won't protect a directory from being marked 
+        """Checks if the dir is currented marked as empty, ignoring
+        items marked as deleted or ignored.  (In other words,
+        ignored items won't protect a directory from being marked
         for deletion.)
         """
         for _, file_entry in self.files.items():
@@ -182,9 +186,9 @@ class DirObj():
                 and self.parent is None):
             self.mark_for_delete()
         elif (self.is_empty()
-                and not self.to_delete
-                and self.parent is not None
-                and not self.parent.is_empty()):
+              and not self.to_delete
+              and self.parent is not None
+              and not self.parent.is_empty()):
             self.mark_for_delete()
         else:
             for _, dir_entry in self.subdirs.items():
@@ -215,15 +219,15 @@ class DirObj():
         """returns a count of all the sizes of the deleted objects
         within.
         """
-        bytes = 0
+        b = 0
         for _, d in self.subdirs.items():
-            bytes = bytes + d.count_bytes(to_delete)
+            b = b + d.count_bytes(to_delete)
         for _, f in self.files.items():
             if f.to_delete and to_delete:
-                bytes = bytes + f.count_bytes(to_delete)
+                b = b + f.count_bytes(to_delete)
             elif not f.to_delete and not to_delete:
-                bytes = bytes + f.count_bytes(to_delete)
-        return bytes
+                b = b + f.count_bytes(to_delete)
+        return b
 
     # DirObj.count_deleted
     def count_deleted(self):

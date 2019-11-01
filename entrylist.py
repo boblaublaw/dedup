@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 
+"""
+    This module describes the EntryList object, static helpers, and constants
+"""
 import os
+import sys
 import stat
 from fileobj import FileObj
 from dirobj import DirObj, DELETE_DIR_LIST
@@ -56,74 +60,79 @@ def check_level(pathname):
 
 
 class EntryList:
-    """A container for all source directories and files to examine"""
+    """
+    A special container for all source directories and files to examine.
+    """
 
     def __init__(self, paths, db, args):
+        """object initiazation"""
         self.contents = {}
         self.db = db
         self.args = args
-        stagger = 0
-
-        # walk arguments adding files and directories
+        self.stagger = 0
         for path in paths:
-            # strip trailing slashes, they are not needed
-            path = path.rstrip(os.path.sep)
+            self.walk(path)
 
-            # check if a weight has been provided for this argument
-            weight_adjust, entry = check_level(path)
+    def walk(self, path):
+        """walk path adding files and directories"""
+        # strip trailing slashes, they are not needed
+        path = path.rstrip(os.path.sep)
 
-            if os.path.isfile(path):
-                if args.stagger_paths:
-                    weight_adjust = weight_adjust + stagger
-                new_file = FileObj(path, args, weight_adjust=weight_adjust)
-                if args.stagger_paths:
-                    stagger = stagger + new_file.depth
-                self.contents[path] = new_file
-            elif issocket(path):
-                print('WARNING: Skipping a socket ' + entry, file=sys.stderr)
-            elif os.path.isdir(path):
-                if args.stagger_paths:
-                    weight_adjust = weight_adjust + stagger
-                top_dir_entry = DirObj(path, self.args, weight_adjust)
-                self.contents[path] = top_dir_entry
-                for dir_name, _, file_list in os.walk(path, topdown=False):
-                    # we do not walk into or add names from our ignore list.
-                    # We wont delete them if they are leaf nodes and we wont
-                    # count them towards parent nodes.
-                    if os.path.basename(dir_name) in DELETE_DIR_LIST:
-                        continue
+        # check if a weight has been provided for this argument
+        weight_adjust, entry = check_level(path)
 
-                    dir_entry = top_dir_entry.place_dir(
-                        dir_name, weight_adjust)
-                    if dir_entry is None:
-                        continue
+        if os.path.isfile(path):
+            if self.args.stagger_paths:
+                weight_adjust = weight_adjust + self.stagger
+            new_file = FileObj(path, self.args, self.db, weight_adjust=weight_adjust)
+            if self.args.stagger_paths:
+                self.stagger = self.stagger + new_file.depth
+            self.contents[path] = new_file
+        elif issocket(path):
+            print('WARNING: Skipping a socket ' + entry, file=sys.stderr)
+        elif os.path.isdir(path):
+            if self.args.stagger_paths:
+                weight_adjust = weight_adjust + self.stagger
+            top_dir_entry = DirObj(path, self.args, weight_adjust)
+            self.contents[path] = top_dir_entry
+            for dir_name, _, file_list in os.walk(path, topdown=False):
+                # we do not walk into or add names from our ignore list.
+                # We wont delete them if they are leaf nodes and we wont
+                # count them towards parent nodes.
+                if os.path.basename(dir_name) in DELETE_DIR_LIST:
+                    continue
 
-                    for fname in file_list:
-                        pname = os.path.join(dir_entry.abspathname, fname)
-                        if issocket(pname):
-                            print('WARNING: Skipping a socket ' +
-                                  pname, file=sys.stderr)
-                        elif os.path.basename(fname) not in DELETE_FILE_LIST:
-                            new_file = FileObj(fname, args, db,
-                                               parent=dir_entry,
-                                               weight_adjust=weight_adjust)
-                            if new_file.bytes == 0 and not args.keep_empty_files:
-                                new_file.to_delete = True
-                            dir_entry.files[fname] = new_file
-                if args.stagger_paths:
-                    stagger = top_dir_entry.max_depth()
-            else:
-                print("\nFATAL ERROR: dont know what this is: " +
-                      path, file=sys.stderr)
-                sys.exit()
+                dir_entry = top_dir_entry.place_dir(
+                    dir_name, weight_adjust)
+                if dir_entry is None:
+                    continue
+
+                for fname in file_list:
+                    pname = os.path.join(dir_entry.abspathname, fname)
+                    if issocket(pname):
+                        print('WARNING: Skipping a socket ' +
+                              pname, file=sys.stderr)
+                    elif os.path.basename(fname) not in DELETE_FILE_LIST:
+                        new_file = FileObj(fname, self.args, self.db,
+                                           parent=dir_entry,
+                                           weight_adjust=weight_adjust)
+                        if new_file.bytes == 0 and not self.args.keep_empty_files:
+                            new_file.to_delete = True
+                        dir_entry.files[fname] = new_file
+            if self.args.stagger_paths:
+                self.stagger = top_dir_entry.max_depth()
+        else:
+            print("\nFATAL ERROR: dont know what this is: " +
+                  path, file=sys.stderr)
+            sys.exit()
 
     # EntryList.count_bytes
     def count_bytes(self, deleted=False):
         """Returns a btyecount of all the (deleted) objects within"""
-        bytes = 0
+        b = 0
         for _, e in self.contents.items():
-            bytes = bytes + e.count_bytes(deleted)
-        return bytes
+            b = b + e.count_bytes(deleted)
+        return b
 
     # EntryList.count_deleted
     def count_deleted(self):
@@ -135,7 +144,8 @@ class EntryList:
 
     # EntryList.prune_empty
     def prune_empty(self):
-        """Flags all the children of the deleted objects within to also
+        """
+        Flags all the children of the deleted objects within to also
         be deleted.
         """
         prev_count = self.count_deleted()
