@@ -128,8 +128,6 @@ def walklevel(some_dir, level=1):
 
 def run_test(args, parser, test_name):
     print('Running test ' + test_name + ': ', end="")
-    newpwd = 'tests' + os.path.sep + test_name + os.path.sep
-    os.chdir(newpwd)
     ephemeral_dir = 'ephemeral'
     before_dir = 'before'
     after_dir = 'after'
@@ -159,9 +157,11 @@ def run_test(args, parser, test_name):
     test_result = os.system("diff --recursive --brief \"" +
                             ephemeral_dir + "\" \"" + after_dir + "\"")
     scriptfile.close()
-    os.remove(script_filename)
-    os.chdir('../..')
+
     if test_result == 0:
+        # on successful test run, remove temp files
+        os.remove(script_filename)
+        shutil.rmtree(ephemeral_dir)
         print('PASSED')
         return 0
     print('FAILED')
@@ -174,8 +174,11 @@ def run_tests(args, parser):
     for _, subdir_list, _ in walklevel('tests', 0):
         subdir_list.sort()
         for test_name in subdir_list:
+            newpwd = 'tests' + os.path.sep + test_name + os.path.sep
+            os.chdir(newpwd)
             if -1 == run_test(args, parser, test_name):
                 return -1
+            os.chdir('../..')
     ignore_this = sizeof_fmt(pow(1024, 8))
     ignore_this = sizeof_fmt(1024)
     return 0
