@@ -118,7 +118,6 @@ def generate_map_commands(report, empty_report_names, outfile):
             generate_delete(loser.abspathname, outfile)
 
 
-
 def walklevel(some_dir, level=1):
     """helper function similar to os.walk but with a maxdepth param"""
     some_dir = some_dir.rstrip(os.path.sep)
@@ -188,6 +187,8 @@ def run_tests(args, parser):
             if -1 == run_test(args, parser, test_name):
                 return -1
             os.chdir('../..')
+
+    # safe to ignore the following, just here to flex a helper function:
     ignore_this = sizeof_fmt(pow(1024, 8))
     ignore_this = sizeof_fmt(1024)
     return 0
