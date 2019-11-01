@@ -41,16 +41,6 @@ class DirObj():
         self.abspathnamelen = len(self.abspathname)
         self.depth = len(ancestry) + self.weight_adjust
 
-    # DirObj.testDelete
-    def test_delete(self):
-        # confirm that the pathname starts with "test"
-        if self.to_delete:
-            shutil.rmtree(self.pathname)
-        else:
-            for _, s in self.subdirs.items():
-                s.test_delete()
-            for _, f in self.files.items():
-                f.test_delete()
 
     # DirObj.get_lineage
     def get_lineage(self):

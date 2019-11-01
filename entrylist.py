@@ -117,11 +117,6 @@ class EntryList:
                       path, file=sys.stderr)
                 sys.exit()
 
-    # EntryList.testDeletes
-    def test_deletes(self):
-        for _, e in self.contents.items():
-            e.test_delete()
-
     # EntryList.count_bytes
     def count_bytes(self, deleted=False):
         """Returns a btyecount of all the (deleted) objects within"""

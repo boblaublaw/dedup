@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 
 ephemeral/
+ephemeral.sh
 
 # C extensions
 *.so

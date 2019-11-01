@@ -39,12 +39,6 @@ class FileObj():
             self.hexdigest = compute_hash(self.abspathname)
         self.to_delete = False
 
-    # FileObj.test_delete
-    # TODO increase protections against mistakes here
-    def test_delete(self):
-        if self.to_delete:
-            os.remove(self.pathname)
-
     # FileObj.max_depth
     def max_depth(self):
         return self.depth

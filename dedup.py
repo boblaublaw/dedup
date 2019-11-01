@@ -150,18 +150,13 @@ def run_test(args, parser, test_name):
     # dedup tests/${test_name}/test
     args = parser.parse_args(test_args)
     results = analyze(args, [ephemeral_dir], scriptfile)
-    # delete the redundant files and directories from the test dir hierarchy
-    results.test_deletes()
     generate_reports(results, scriptfile)
+    scriptfile.close()
+    os.system('sh ' + script_filename)
     # compare tests/${test_name}/test with tests/${test_name}/after
     test_result = os.system("diff --recursive --brief \"" +
                             ephemeral_dir + "\" \"" + after_dir + "\"")
-    scriptfile.close()
-
     if test_result == 0:
-        # on successful test run, remove temp files
-        os.remove(script_filename)
-        shutil.rmtree(ephemeral_dir)
         print('PASSED')
         return 0
     print('FAILED')
@@ -305,7 +300,6 @@ Simplest Example:
         sys.exit(run_tests(args, parser))
     else:
         results = analyze(args, paths)
-        results.test_deletes()
         if results != None:
             generate_reports(results)
         sys.exit(0)
