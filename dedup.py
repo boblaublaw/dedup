@@ -17,12 +17,9 @@ from hashmap import HashMap
 from hashdbobj import HashDbObj
 from entrylist import EntryList
 
-# what to export when other scripts import this module:
-#__all__ = ["FileObj", "DirObj", "EntryObj", "HashDbObj" ]
-
 
 def sizeof_fmt(num, suffix='B'):
-    """helper function found on stackoverflow"""
+    """helper function to convert bytes to IEC values like '5.6MiB'."""
     prefix_list = ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']
     for unit in prefix_list:
         if abs(num) < 1024.0:
@@ -123,10 +120,7 @@ def generate_map_commands(report, empty_report_names, outfile):
 
 
 def walklevel(some_dir, level=1):
-    """
-    helper function similar to os.walk but with a maxdepth param, taken from SO:
-    https://stackoverflow.com/questions/229186/os-walk-without-digging-into-directories-below
-    """
+    """helper function similar to os.walk but with a maxdepth param"""
     some_dir = some_dir.rstrip(os.path.sep)
     assert os.path.isdir(some_dir)
     num_sep = some_dir.count(os.path.sep)
