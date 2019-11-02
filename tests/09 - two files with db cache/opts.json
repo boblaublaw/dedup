@@ -2,6 +2,7 @@
 	"args": [
 		"-v",
 		"-d",
-		"test"
-	]
+		"test.db"
+	],
+	"twice" : true
 }

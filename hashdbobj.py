@@ -33,7 +33,7 @@ def compute_hash(pathname):
             if not data:
                 break
             sha1.update(data)
-    return sha1.hexdigest()
+    return sha1.hexdigest().encode('utf-8')
 
 
 class HashDbObj():
@@ -65,19 +65,19 @@ class HashDbObj():
         """look up this path to see if it has already been computed"""
         if f.pathname in self.db:
             # we've a cached hash value for this pathname
-            if f.mod_time > self.mod_time:
-                # file is newer than db
-                pass
-            else:
+            if f.mod_time < self.mod_time:
                 # db is newer than file
                 digest = self.db[f.pathname]
                 if self.args.verbosity > 0:
-                    print('# hash ' + digest + ' for ' +
+                    print('# hash ' + str(digest) + ' for ' +
                           f.pathname + ' already in db.', file=self.outfile)
                 return digest
         digest = compute_hash(f.pathname)
         # add/update the cached hash value for this entry:
         self.db[f.pathname] = digest
         return digest
+
+    def close(self):
+        self.db.close()
 
 # vim: set expandtab sw=4 ts=4:

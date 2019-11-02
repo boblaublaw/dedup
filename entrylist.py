@@ -78,7 +78,7 @@ class EntryList:
         path = path.rstrip(os.path.sep)
 
         # check if a weight has been provided for this argument
-        weight_adjust, entry = check_level(path)
+        weight_adjust, path = check_level(path)
 
         if os.path.isfile(path):
             if self.args.stagger_paths:
@@ -88,7 +88,7 @@ class EntryList:
                 self.stagger = self.stagger + new_file.depth
             self.contents[path] = new_file
         elif issocket(path):
-            print('WARNING: Skipping a socket ' + entry, file=sys.stderr)
+            print('WARNING: Skipping a socket ' + path, file=sys.stderr)
         elif os.path.isdir(path):
             if self.args.stagger_paths:
                 weight_adjust = weight_adjust + self.stagger

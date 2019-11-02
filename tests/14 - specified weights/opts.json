@@ -1,0 +1,6 @@
+{
+	"paths": [
+		"1000:ephemeral/a",
+		"0:ephemeral/b"
+	]
+}

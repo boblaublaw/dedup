@@ -203,11 +203,10 @@ class DirObj():
         for _, dir_entry in self.subdirs.items():
             digests.append(dir_entry.hexdigest)
         digests.sort()
-        #map(encode('utf-8'), digests)
         sha1 = hashlib.sha1()
         for d in digests:
-            sha1.update(d.encode('utf-8'))
-        self.hexdigest = sha1.hexdigest()
+            sha1.update(d)
+        self.hexdigest = sha1.hexdigest().encode('utf-8')
         if (len(self.files) + len(self.subdirs)) == 0:
             self.to_delete = not self.args.keep_empty_dirs
 

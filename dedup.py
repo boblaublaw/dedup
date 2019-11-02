@@ -154,8 +154,12 @@ def run_test(args, parser, test_name):
     shutil.copytree(before_dir, ephemeral_dir, symlinks=False, ignore=None)
 
     # pull arguments out of tests/${test_name}/opts.json, if they exist
-    test_args = special = []
+    test_args = []
+    expected_pass = 0
     test_paths = [ ephemeral_dir ]
+    twice = False
+    runs = 1
+
     try:
         opts = loads(open(test_config_filename).read())
     except OSError:
@@ -165,32 +169,64 @@ def run_test(args, parser, test_name):
         test_args = opts["args"]
     if "paths" in opts:
         test_paths = opts["paths"]
-    if "special" in opts:
-        special = opts["special"]
+    if "twice" in opts and opts["twice"]:
+        runs = 2
+    if "expected_pass" in opts:
+        expected_pass = opts["expected_pass"]
 
-    # dedup tests/${test_name}/test
+    # prepare arguments
     args = parser.parse_args(test_args)
-    results = analyze(args, test_paths, scriptfile)
+
+    # run as many times as requested:
+    i=0
+    while (i < runs):
+        i = i + 1
+        print("# run number " + str(i), file=scriptfile)
+        results = analyze(args, test_paths, scriptfile)
+        if results is None:
+            if expected_pass:
+                print("FAILED (failed analyze")
+                return -1
+            else:
+                print("PASSED")
+                return 0
+
     generate_reports(results, scriptfile)
     scriptfile.close()
-    os.system('sh ' + script_filename)
+    # run the generated script to delete from the ephemeral dir
+    exec_result = os.system('sh ' + script_filename)
+    if exec_result != 0:
+        print('FAILED (script fail')
+        return -1
+
     # compare tests/${test_name}/test with tests/${test_name}/after
     test_result = os.system("diff --recursive --brief \"" +
                             ephemeral_dir + "\" \"" + after_dir + "\"")
     if test_result == 0:
         print('PASSED')
         return 0
-    print('FAILED')
+    print('FAILED (unexpected results)')
     return -1
 
 
 def run_tests(args, parser):
     """
-    walk all the dirs under 'tests' dir, treating each as a test case
+    run all the requested test cases, each described as a dir under "tests"
     """
+    test_list = []
     for _, subdir_list, _ in walklevel('tests', 0):
         subdir_list.sort()
-        for test_name in subdir_list:
+        test_list=subdir_list.copy()
+
+    # filter to just the requested test(s)
+    # this will be '00' if all tests are requested.
+    requested_test = ( '%02d' % int(args.run_tests))
+    if requested_test != '00':
+        test_list = [x for x in test_list if x[:2] == requested_test]
+
+    # run the requested test(s):
+    for test_name in test_list:
+        if test_name[:2] == requested_test or requested_test == '00':
             newpwd = 'tests' + os.path.sep + test_name + os.path.sep
             os.chdir(newpwd)
             if -1 == run_test(args, parser, test_name):
@@ -207,19 +243,12 @@ def analyze(args, paths, outfile=sys.stdout):
     """
     analyze a list of paths for redundant files and directories.
     return a "results" object.
+
+    returns None on failure
     """
-
     if len(paths) == 0 and args.stagger_paths:
-        print('# -s/--stagger-paths specified, but no paths provided!')
-        sys.exit(-1)
-
-    if args.nuke_database:
-        if args.verbosity > 0:
-            print('# removing the database before we begin...' + args.database)
-        try:
-            os.remove(args.database)
-        except OSError:
-            pass  # ignore errors because its ok if this doesn't exist
+        print('# -s/--stagger-paths specified, but no paths provided!', file=outfile)
+        return None
 
     db = None
     if args.database is not None:
@@ -244,6 +273,8 @@ def analyze(args, paths, outfile=sys.stdout):
             if deleted > 0:
                 print('# ' + str(deleted) +
                       ' entries deleted on pass ' + str(pass_count), file=outfile)
+        if db is not None:
+            db.close()
         return all_files
     return None
 
@@ -305,25 +336,25 @@ Simplest Example:
                         help="do not delete empty directories (default to false)")
     parser.add_argument("-f", "--keep-empty-files", action="store_true",
                         help="do not delete empty files (default to false)")
-    parser.add_argument("-n", "--nuke-database", action="store_true",
-                        help="delete the provided cache before starting")
     parser.add_argument("-r", "--reverse-selection", action="store_true",
                         help="reverse the dir/file selection choices")
     parser.add_argument("-s", "--stagger-paths", action="store_true",
                         help="always prefer files in argument order")
-    parser.add_argument("-t", "--run-tests", action="store_true",
+    parser.add_argument("-t", "--run-tests", nargs='?', const=0, default=-1, type=int,
                         help="run all the tests listed in 'test' subdir")
+    parser.add_argument('--foo', )
     parser.add_argument("-v", "--verbosity", action="count", default=0,
                         help="increase output verbosity")
     args, paths = parser.parse_known_args()
 
-    # requesting unit test execution discards all other options.
-    if args.run_tests:
-        sys.exit(run_tests(args, parser))
-    else:
+    # if args.run_tests is -1, we do not run tests
+    if args.run_tests == -1:
         res = analyze(args, paths)
-        if res is not None:
+        if res is None:
+            sys.exit(-1)
+        else:
             generate_reports(res)
-        sys.exit(0)
+    else:
+        sys.exit(run_tests(args, parser))
 
 # vim: set expandtab sw=4 ts=4:
