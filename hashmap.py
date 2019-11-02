@@ -6,7 +6,7 @@
 
 import sys
 from collections import defaultdict
-from operator import attrgetter
+import operator
 from fileobj import FileObj
 from dirobj import DirObj
 
@@ -98,7 +98,7 @@ class HashMap:
             return
 
         candidates.sort(
-            key=attrgetter('depth', 'pathnamelen', 'pathname'),
+            key=operator.attrgetter('depth', 'pathnamelen', 'pathname'),
             reverse=self.args.reverse_selection)
         winner = candidates.pop(0)
 
@@ -133,48 +133,12 @@ class HashMap:
         """
         prev_count = self.all_files.count_deleted()
 
-        # no need to resolve uniques, so remove them from the HashMap
-        uniques = []
-        # you cannot modify a collection while iterating over it...
-        for hashval, l in self.content_hash.items():
-            if len(l) == 1:
-                uniques.append(hashval)
-        # ... so delete entries in a second pass.
-        for entry in uniques:
-            del self.content_hash[entry]
+        # do away with hash values that have no duplicates:
+        self.content_hash = {k: v for k, v in self.content_hash.items() if len(v) != 1}
 
-        # delete the directories first, in order of (de/in)creasing depth,
-        # depending on the reverse_selection setting.
-        #
-        # This approach isn't strictly required but it results in fewer
-        # calls to this function if we delete leaf nodes first, as it will
-        # allow non-leaf directories to match on subsequent calls to
-        # resolve().
-
-        depths = range(self.min_depth - 1, self.max_depth + 1)
-        if self.args.reverse_selection:
-            depths = reversed(depths)
-
-        #if self.args.verbosity > 0:
-        #    print('# checking candidates in dir depth order: ' +
-        #          str(depths), file=self.outfile)
-
-        for depth_filter in depths:
-            #print('# checking depth ' + str(depth_filter), file=self.outfile)
-            for _, candidates in filter(lambda x:
-                                        member_is_type(x, DirObj), self.content_hash.items()):
-                if self.args.reverse_selection:
-                    maybes = [x for x in candidates if x.depth < depth_filter]
-                else:
-                    maybes = [x for x in candidates if x.depth > depth_filter]
-                if len(maybes) > 0:
-                    self.resolve_candidates(maybes)
-            self.prune()
-
-        just_files = filter(lambda x: member_is_type(x, FileObj),
-                            self.content_hash.items())
-        for _, candidates in just_files:
+        for _, candidates in self.content_hash.items():
             self.resolve_candidates(candidates)
+
         self.prune()
 
         return self.all_files.count_deleted() - prev_count
