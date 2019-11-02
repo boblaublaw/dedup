@@ -153,15 +153,24 @@ def run_test(args, parser, test_name):
     # create the ephemeral_dir based on the before_dir
     shutil.copytree(before_dir, ephemeral_dir, symlinks=False, ignore=None)
 
-    # pull arguments out of tests/${test_name}/opts.json
+    # pull arguments out of tests/${test_name}/opts.json, if they exist
+    test_args = special = []
+    test_paths = [ ephemeral_dir ]
     try:
-        test_args = loads(open(test_config_filename).read())
+        opts = loads(open(test_config_filename).read())
     except OSError:
-        test_args = []
+        opts = {}
+
+    if "args" in opts:
+        test_args = opts["args"]
+    if "paths" in opts:
+        test_paths = opts["paths"]
+    if "special" in opts:
+        special = opts["special"]
 
     # dedup tests/${test_name}/test
     args = parser.parse_args(test_args)
-    results = analyze(args, [ephemeral_dir], scriptfile)
+    results = analyze(args, test_paths, scriptfile)
     generate_reports(results, scriptfile)
     scriptfile.close()
     os.system('sh ' + script_filename)
