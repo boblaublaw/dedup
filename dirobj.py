@@ -42,10 +42,8 @@ class DirObj():
         self.hexdigest = None
         ancestry = self.get_lineage()
         self.pathname = os.path.join(*ancestry)
-        self.abspathname = os.path.abspath(self.pathname)
-        self.abspathnamelen = len(self.abspathname)
+        self.pathnamelen = len(self.pathname)
         self.depth = len(ancestry) + self.weight_adjust
-
 
     # DirObj.get_lineage
     def get_lineage(self):
@@ -142,7 +140,7 @@ class DirObj():
                 else:
                     empty_report['___empty___'].append(self)
             else:
-                loser_list = dir_report[self.winner.abspathname]
+                loser_list = dir_report[self.winner.pathname]
                 loser_list.append(self)
         else:
             for _, file_entry in self.files.items():

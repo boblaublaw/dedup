@@ -29,10 +29,9 @@ class FileObj():
             self.pathname = self.name
             self.depth = self.weight_adjust
 
-        self.abspathname = os.path.abspath(self.pathname)
-        self.abspathnamelen = len(self.abspathname)
+        self.pathnamelen = len(self.pathname)
 
-        stat_result = os.stat(self.abspathname)
+        stat_result = os.stat(self.pathname)
         self.mod_time = stat_result.st_mtime
         self.create_time = stat_result.st_ctime
         self.bytes = stat_result.st_size
@@ -40,7 +39,7 @@ class FileObj():
         if self.db is not None:
             self.hexdigest = self.db.lookup_hash(self)
         else:
-            self.hexdigest = compute_hash(self.abspathname)
+            self.hexdigest = compute_hash(self.pathname)
         self.to_delete = False
 
     # FileObj.delete
@@ -65,7 +64,7 @@ class FileObj():
             print('\nFATAL: BIRTHDAY LOTTERY CRISIS!', file=sys.stderr)
             print('FATAL: matched hashes and mismatched sizes!', file=sys.stderr)
             sys.exit(-1)
-        loser_list = file_report[self.winner.abspathname]
+        loser_list = file_report[self.winner.pathname]
         loser_list.append(self)
 
     # FileObj.prune_empty

@@ -50,7 +50,7 @@ def synthesize_report(results):
         all_marked_count = all_marked_count + marked_count
         total_marked_bytes = 0
         if marked_count > 0:
-            loser_list.sort(key=lambda x: x.abspathname)
+            loser_list.sort(key=lambda x: x.pathname)
             for loser in loser_list:
                 total_marked_bytes = total_marked_bytes + \
                     loser.count_bytes(True)
@@ -115,7 +115,7 @@ def generate_map_commands(report, empty_report_names, outfile):
         if report_name not in empty_report_names:
             print("#      '" + winner['winner_name'] + "'", file=outfile)
         for loser in winner['loser_list']:
-            generate_delete(loser.abspathname, outfile)
+            generate_delete(loser.pathname, outfile)
 
 
 def walklevel(some_dir, level=1):

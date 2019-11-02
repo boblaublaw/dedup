@@ -80,21 +80,21 @@ class HashDbObj():
 
     def lookup_hash(self, f):
         """look up this path to see if it has already been computed"""
-        if f.abspathname in self.db:
-            # we've a cached hash value for this abspathname
+        if f.pathname in self.db:
+            # we've a cached hash value for this pathname
             if f.mod_time > self.mod_time:
                 # file is newer than db
                 pass
             else:
                 # db is newer than file
-                digest = self.db[f.abspathname]
+                digest = self.db[f.pathname]
                 if self.args.verbosity > 0:
                     print('# hash ' + digest + ' for ' +
-                          f.abspathname + ' already in db.', file=self.outfile)
+                          f.pathname + ' already in db.', file=self.outfile)
                 return digest
-        digest = compute_hash(f.abspathname)
+        digest = compute_hash(f.pathname)
         # add/update the cached hash value for this entry:
-        self.db[f.abspathname] = digest
+        self.db[f.pathname] = digest
         return digest
 
     def clean(self):

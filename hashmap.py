@@ -98,7 +98,7 @@ class HashMap:
             return
 
         candidates.sort(
-            key=attrgetter('depth', 'abspathnamelen', 'abspathname'),
+            key=attrgetter('depth', 'pathnamelen', 'pathname'),
             reverse=self.args.reverse_selection)
         winner = candidates.pop(0)
 
@@ -119,11 +119,11 @@ class HashMap:
                     if self.args.verbosity > 0:
                         s = '# dir  "'
                         if isinstance(candidate, DirObj):
-                            s = s + candidate.abspathname
+                            s = s + candidate.pathname
                         else:
-                            s = s + candidate.abspathname
+                            s = s + candidate.pathname
                         print(s + '" covered by "' +
-                              winner.abspathname + '"', file=self.outfile)
+                              winner.pathname + '"', file=self.outfile)
                     candidate.winner = winner
 
     # HashMap.resolve
@@ -155,12 +155,12 @@ class HashMap:
         if self.args.reverse_selection:
             depths = reversed(depths)
 
-        if self.args.verbosity > 0:
-            print('# checking candidates in dir depth order: ' +
-                  str(depths), file=self.outfile)
+        #if self.args.verbosity > 0:
+        #    print('# checking candidates in dir depth order: ' +
+        #          str(depths), file=self.outfile)
 
         for depth_filter in depths:
-            print('# checking depth ' + str(depth_filter), file=self.outfile)
+            #print('# checking depth ' + str(depth_filter), file=self.outfile)
             for _, candidates in filter(lambda x:
                                         member_is_type(x, DirObj), self.content_hash.items()):
                 if self.args.reverse_selection:

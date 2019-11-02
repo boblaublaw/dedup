@@ -108,7 +108,7 @@ class EntryList:
                     continue
 
                 for fname in file_list:
-                    pname = os.path.join(dir_entry.abspathname, fname)
+                    pname = os.path.join(dir_entry.pathname, fname)
                     if issocket(pname):
                         print('WARNING: Skipping a socket ' +
                               pname, file=sys.stderr)
