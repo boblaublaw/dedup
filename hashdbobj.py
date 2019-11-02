@@ -80,41 +80,4 @@ class HashDbObj():
         self.db[f.pathname] = digest
         return digest
 
-    def clean(self):
-        """function to remove dead nodes from the hash db"""
-        start_time = time.time()
-        print('# Starting database clean...', file=self.outfile)
-        all_keys = self.db.keys()
-        print('# finished loaded keys from ' +
-              self.args.database, file=self.outfile)
-        all_keys.sort()
-        print('# finished sorting keys from ' +
-              self.args.database, file=self.outfile)
-        print('# deleting dead nodes', file=self.outfile)
-        miss_count = 0
-        hit_count = 0
-        for curr_key in all_keys:
-            try:
-                os.stat(curr_key)
-            except OSError:
-                del self.db[curr_key]
-                if self.args.verbosity > 0:
-                    sys.stdout.write('*')
-                    sys.stdout.flush()
-                miss_count = miss_count+1
-            else:
-                hit_count = hit_count + 1
-                if self.args.verbosity > 0:
-                    sys.stdout.write('.')
-                    sys.stdout.flush()
-        print("# reorganizing " + self.args.database, file=self.outfile)
-        self.db.reorganize()
-        self.db.sync()
-        print('# done cleaning ' + self.args.database + ', removed ' +
-              str(miss_count) + ' dead nodes and kept ' + str(hit_count) +
-              ' nodes!', file=self.outfile)
-        end_time = time.time()
-        print('# Database clean complete after ' +
-              str(end_time - start_time) + 'seconds', file=self.outfile)
-
 # vim: set expandtab sw=4 ts=4:

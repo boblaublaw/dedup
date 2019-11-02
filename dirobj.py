@@ -60,15 +60,14 @@ class DirObj():
     def max_depth(self):
         """Determine the deepest point from this directory"""
         md = self.depth
-        if len(self.subdirs.keys()) > 0:
-            for _, entry in self.subdirs.items():
-                if not entry.to_delete:
-                    td = entry.max_depth()
-                    if td > md:
-                        md = td
+        for _, entry in self.subdirs.items():
+            if not entry.to_delete:
+                td = entry.max_depth()
+                if td > md:
+                    md = td
             return md
         if len(self.files.keys()) > 0:
-            return md + 1
+            md = md + 1
         return md
 
     # DirObj.place_dir

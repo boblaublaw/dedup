@@ -199,9 +199,6 @@ def analyze(args, paths, outfile=sys.stdout):
     analyze a list of paths for redundant files and directories.
     return a "results" object.
     """
-    if args.clean_database and args.database is None:
-        print('# database file must be specified for --clean-database command (use -d)')
-        sys.exit(-1)
 
     if len(paths) == 0 and args.stagger_paths:
         print('# -s/--stagger-paths specified, but no paths provided!')
@@ -218,9 +215,6 @@ def analyze(args, paths, outfile=sys.stdout):
     db = None
     if args.database is not None:
         db = HashDbObj(args, outfile)
-
-    if args.clean_database:
-        db.clean()
 
     if len(paths) > 0:
         all_files = EntryList(paths, db, args)
@@ -296,8 +290,6 @@ Simplest Example:
     parser = argparse.ArgumentParser(description=desc,
                                      epilog=afterword,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("-c", "--clean-database", action="store_true",
-                        help="clean hash cache instead of normal operation")
     parser.add_argument("-d", "--database",
                         help="name of DBM file to use for hash cache")
     parser.add_argument("-e", "--keep-empty-dirs", action="store_true",

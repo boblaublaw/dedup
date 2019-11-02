@@ -63,7 +63,6 @@ class EntryList:
     """
     A special container for all source directories and files to examine.
     """
-
     def __init__(self, paths, db, args):
         """object initiazation"""
         self.contents = {}
@@ -119,8 +118,9 @@ class EntryList:
                         if new_file.bytes == 0 and not self.args.keep_empty_files:
                             new_file.to_delete = True
                         dir_entry.files[fname] = new_file
+
             if self.args.stagger_paths:
-                self.stagger = top_dir_entry.max_depth()
+                self.stagger = self.stagger + top_dir_entry.max_depth()
         else:
             print("\nFATAL ERROR: dont know what this is: " +
                   path, file=sys.stderr)
