@@ -8,6 +8,7 @@ import os
 import sys
 import hashlib
 import time
+import dbm
 
 # CONSTANTS:
 #
@@ -39,7 +40,6 @@ class HashDbObj():
     """
     The HashDbObj is a wrapper for a "dbm" cache file.
     This object is used if the "-d" option is requested at invocation.
-    Two types of gdm caches are attempted, if neither is available, we fail.
     """
     def __init__(self, args, outfile):
         self.args = args
@@ -53,27 +53,10 @@ class HashDbObj():
         print('# db last modification time is ' +
               str(time.time() - self.mod_time) + ' seconds ago', file=self.outfile)
 
-        try:
-            import gdbm
-            self.db_type = 'gdbm'
-        except ImportError:
-            self.db_type = 'anydbm'
-            print('# no gdbm implementation found, trying anydbm', file=self.outfile)
-            try:
-                import anydbm
-            except ImportError:
-                print('\nFATAL: no dbm implementation found!', file=sys.stderr)
-                sys.exit(-1)
-
-        print('# set to use database ' +
-              self.args.database + ' of type: ' + self.db_type, file=self.outfile)
         print('# loading database ' + self.args.database, file=self.outfile)
         try:
-            if self.db_type == 'gdbm':
-                self.db = gdbm.open(self.args.database, 'c')
-            elif self.db_type == 'anydbm':
-                self.db = anydbm.open(self.args.database, 'c')
-        except ModuleNotFoundError:
+            self.db = dbm.open(self.args.database, 'c')
+        except:
             print("\nFATAL: " + self.args.database +
                   " could not be loaded", file=sys.stderr)
             sys.exit(-1)
@@ -99,16 +82,8 @@ class HashDbObj():
 
     def clean(self):
         """function to remove dead nodes from the hash db"""
-        if self.db_type != 'gdbm':
-            print('\nFATAL: non-gdbm databases (' + self.db_type +
-                  ') dont support the reorganize method!', file=sys.stderr)
-            sys.exit(-1)
-
         start_time = time.time()
         print('# Starting database clean...', file=self.outfile)
-        # even though gdbm supports memory efficient iteration over
-        # all keys, I want to order my traversal across similar
-        # paths to leverage caching of directory files:
         all_keys = self.db.keys()
         print('# finished loaded keys from ' +
               self.args.database, file=self.outfile)

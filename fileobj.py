@@ -67,13 +67,6 @@ class FileObj():
         loser_list = file_report[self.winner.pathname]
         loser_list.append(self)
 
-    # FileObj.prune_empty
-    def prune_empty(self):
-        """Crawls through all directories and deletes the children of
-        the deleted
-        """
-        return False            # can't prune a file
-
     # FileObj.count_bytes
     def count_bytes(self, to_delete=False):
         """Returns a count of all the sizes of the deleted objects
