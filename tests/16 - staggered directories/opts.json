@@ -2,7 +2,7 @@
 	"args": [
 		"-s"
 	], "paths": [
-		"ephemeral/a",
-		"ephemeral/b"
+		"ephemeral/b",
+		"ephemeral/a"
 	]
 }

@@ -99,18 +99,16 @@ class HashMap:
         candidates.sort(
             key=operator.attrgetter('depth', 'pathnamelen', 'pathname'),
             reverse=self.args.reverse_selection)
+
         winner = candidates.pop(0)
 
-        if isinstance(winner, DirObj) and winner.is_empty():
+        if winner.is_empty():
             # we trim empty directories using DirObj.prune_empty()
-            # because it produces less confusing output
+            # because it produces less confusing output.
+            # we also trim empty files elsewhere.
             return
 
-        if isinstance(winner, FileObj) and winner.bytes == 0:
-            # we also trim empty files
-            return
-
-        # once we have a winner, mark all the other candidates as losers
+        # mark all the other candidates as losers
         for candidate in candidates:
             if candidate != winner:
                 if not candidate.to_delete:

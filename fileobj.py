@@ -42,6 +42,12 @@ class FileObj():
             self.hexdigest = compute_hash(self.pathname)
         self.to_delete = False
 
+    # FileObj.is_empty
+    def is_empty(self):
+        if self.bytes == 0:
+            return True
+        return False
+
     # FileObj.delete
     def mark_for_delete(self):
         """Mark for deletion"""
