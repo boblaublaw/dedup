@@ -4,133 +4,24 @@
 """
     This is the 'main()' for this package.
 """
-
 import os
 import sys
 import time
-import argparse
 import shutil
+import argparse
 from json import loads
-from itertools import chain
-from collections import defaultdict
 from hashmap import HashMap
-from hashdbobj import HashDbObj
 from entrylist import EntryList
+from hashdbobj import HashDbObj
+from report import generate_reports
 
-
-def sizeof_fmt(num, suffix='B'):
-    """helper function to convert bytes to IEC values like '5.6MiB'."""
-    prefix_list = ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']
-    for unit in prefix_list:
-        if abs(num) < 1024.0:
-            return "%3.1f %s%s" % (num, unit, suffix)
-        num /= 1024.0
-    return "%.1f%s%s" % (num, 'Yi', suffix)
-
-
-def generate_delete(filename, outfile):
-    """generates not-quite-safe rm commands.  TODO does not handle
-    pathnames which contain both the ' and " characters.
-    """
-    # characters that we will wrap with double quotes:
-    delim_test_chars = set("'()")
-    if any((c in delim_test_chars) for c in filename):
-        print('rm -rf "' + filename + '"', file=outfile)
-    else:
-        print("rm -rf '" + filename + "'", file=outfile)
-
-
-def synthesize_report(results):
-    """transforms a results object into a report structure"""
-    winner_list = []
-    all_marked_bytes = 0
-    all_marked_count = 0
-    for winner_name, loser_list in results.items():
-        marked_count = len(loser_list)
-        all_marked_count = all_marked_count + marked_count
-        total_marked_bytes = 0
-        if marked_count > 0:
-            loser_list.sort(key=lambda x: x.pathname)
-            for loser in loser_list:
-                total_marked_bytes = total_marked_bytes + \
-                    loser.count_bytes(True)
-        all_marked_bytes = all_marked_bytes + total_marked_bytes
-        new_result = {}
-        new_result['winner_name'] = winner_name
-        new_result['marked_count'] = marked_count
-        new_result['total_marked_bytes'] = total_marked_bytes
-        new_result['loser_list'] = loser_list
-        winner_list.append(new_result)
-
-    # set the order to present each result from this report:
-    winner_list.sort(key=lambda x: x['total_marked_bytes'], reverse=True)
-    return winner_list, all_marked_bytes, all_marked_count
-
-
-def synthesize_reports(report_map):
-    """transforms a results object into several report structures,
-    each of which reflects a category of file or dir to be deleted"""
-    report_list = []
-    for report_name, report in report_map.items():
-        new_report = {}
-        new_report['report_name'] = report_name
-        win = 'winner_list'
-        total = 'total_marked_bytes'
-        marked = 'marked_count'
-        new_report[win], new_report[total], new_report[marked] = synthesize_report(
-            report)
-        report_list.append(new_report)
-
-    report_list.sort(key=lambda x: x['total_marked_bytes'], reverse=True)
-    return report_list
-
-
-def generate_map_commands(report, empty_report_names, outfile):
-    """transforms an analyzer report into a script that can be
-    easily reviewed"""
-    winner_list = report['winner_list']
-    win_count = len(winner_list)
-    # dont generate empty sections
-    if win_count == 0:
-        return
-    report_name = report['report_name']
-    total_marked_bytes = report['total_marked_bytes']
-    marked_count = report['marked_count']
-
-    print("\n" + '#' * 72, file=outfile)
-    if report_name in empty_report_names:
-        print('# ' + report_name + ': ' +
-              str(marked_count) + ' to remove', file=outfile)
-        print('# This section could make ' +
-              sizeof_fmt(total_marked_bytes) + ' of file data redundant\n', file=outfile)
-    else:
-        print('# ' + report_name + ' : ' + str(win_count) +
-              ' to keep and ' + str(marked_count) + ' to remove', file=outfile)
-        print('# This section could make ' +
-              sizeof_fmt(total_marked_bytes) + ' of file data redundant\n', file=outfile)
-
-    for winner in winner_list:
-        print("# This subsection could save " +
-              sizeof_fmt(winner['total_marked_bytes']), file=outfile)
-        if report_name not in empty_report_names:
-            print("#      '" + winner['winner_name'] + "'", file=outfile)
-        for loser in winner['loser_list']:
-            generate_delete(loser.pathname, outfile)
-
-
-def walklevel(some_dir, level=1):
+def subdirs(some_dir):
     """helper function similar to os.walk but with a maxdepth param"""
-    some_dir = some_dir.rstrip(os.path.sep)
-    assert os.path.isdir(some_dir)
-    num_sep = some_dir.count(os.path.sep)
-    for root, dirs, files in os.walk(some_dir):
-        yield root, dirs, files
-        num_sep_this = root.count(os.path.sep)
-        if num_sep + level <= num_sep_this:
-            del dirs[:]
+    for _, dirs, _ in os.walk(some_dir.rstrip(os.path.sep)):
+        return dirs
 
 
-def run_test(args, parser, test_name):
+def run_test(args, parser, test_name, start_time):
     """
     executes a single test via several steps:
         1. remove cruft from previous executions.
@@ -189,7 +80,7 @@ def run_test(args, parser, test_name):
                 print("PASSED")
                 return 0
 
-    generate_reports(results, scriptfile)
+    generate_reports(results, scriptfile, start_time)
     scriptfile.close()
     # run the generated script to delete from the ephemeral dir
     exec_result = os.system('sh ' + script_filename)
@@ -207,33 +98,28 @@ def run_test(args, parser, test_name):
     return -1
 
 
-def run_tests(args, parser):
+def run_tests(args, parser, start_time):
     """
     run all the requested test cases, each described as a dir under "tests"
     """
-    test_list = []
-    for _, subdir_list, _ in walklevel('tests', 0):
-        subdir_list.sort()
-        test_list=subdir_list.copy()
+    test_list = subdirs('tests')
 
     # filter to just the requested test(s)
     # this will be '00' if all tests are requested.
     requested_test = ( '%02d' % int(args.run_tests))
     if requested_test != '00':
         test_list = [x for x in test_list if x[:2] == requested_test]
+    else:
+        test_list.sort()
 
     # run the requested test(s):
     for test_name in test_list:
         if test_name[:2] == requested_test or requested_test == '00':
             newpwd = 'tests' + os.path.sep + test_name + os.path.sep
             os.chdir(newpwd)
-            if -1 == run_test(args, parser, test_name):
+            if -1 == run_test(args, parser, test_name, start_time):
                 return -1
             os.chdir('../..')
-
-    # safe to ignore the following, just here to flex a helper function:
-    ignore_this = sizeof_fmt(pow(1024, 8))
-    ignore_this = sizeof_fmt(1024)
     return 0
 
 
@@ -269,40 +155,6 @@ def analyze(args, paths, outfile=sys.stdout):
             db.close()
         return all_files
     return None
-
-
-def generate_reports(all_files, outfile=sys.stdout):
-    """
-    transforms an annotated structure describing all analyzed files and dirs
-    into a set of report structures, each of which reflects a category of
-    data to delete.
-    """
-    # a list of report names we will generate.  Note that these are later
-    # indexed elsewhere, so be careful renaming
-    regular_report_names = ['directories', 'files']
-    empty_report_names = ['directories that are empty after reduction',
-                          'directories that started empty', 'empty files']
-
-    # create each category for files to delete in its own report.
-    # reports are a dict indexed by "winner" that points to a metadata
-    # and a list of losers
-    report_maps = {}
-    for report_name in chain(regular_report_names, empty_report_names):
-        report_maps[report_name] = defaultdict(lambda: [])
-
-    for _, e in all_files.contents.items():
-        e.generate_reports(report_maps)
-
-    report_lists = synthesize_reports(report_maps)
-
-    for report in report_lists:
-        generate_map_commands(report, empty_report_names, outfile)
-
-    end_time = time.time()
-    print('\n# total file data bytes marked for deletion ' +
-          sizeof_fmt(all_files.count_bytes(deleted=True)), file=outfile)
-    print('# total dedup running time: ' +
-          str(end_time - start_time) + ' seconds.', file=outfile)
 
 
 if __name__ == '__main__':
@@ -345,8 +197,8 @@ Simplest Example:
         if res is None:
             sys.exit(-1)
         else:
-            generate_reports(res)
+            generate_reports(res, sys.stdout, start_time)
     else:
-        sys.exit(run_tests(args, parser))
+        sys.exit(run_tests(args, parser, start_time))
 
 # vim: set expandtab sw=4 ts=4:

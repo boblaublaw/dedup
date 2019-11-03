@@ -94,9 +94,6 @@ class HashMap:
         candidate is chosen, else the shallowest is chosen.  In the case
         of a tie, the length of the full path is compared.
         """
-        if len(candidates) == 0:
-            return
-
         candidates.sort(
             key=operator.attrgetter('depth', 'pathnamelen', 'pathname'),
             reverse=self.args.reverse_selection)
@@ -116,14 +113,6 @@ class HashMap:
             if candidate != winner:
                 if not candidate.to_delete:
                     candidate.mark_for_delete()
-                    if self.args.verbosity > 0:
-                        s = '# dir  "'
-                        if isinstance(candidate, DirObj):
-                            s = s + candidate.pathname
-                        else:
-                            s = s + candidate.pathname
-                        print(s + '" covered by "' +
-                              winner.pathname + '"', file=self.outfile)
                     candidate.winner = winner
 
     # HashMap.resolve
@@ -131,7 +120,7 @@ class HashMap:
         """Compares all entries and where hash collisions exists, pick a
         keeper.
         """
-        prev_count = self.all_files.count_deleted()
+        prev_deleted = self.all_files.count_deleted()
 
         # do away with hash values that have no duplicates:
         self.content_hash = {k: v for k, v in self.content_hash.items() if len(v) != 1}
@@ -141,6 +130,6 @@ class HashMap:
 
         self.prune()
 
-        return self.all_files.count_deleted() - prev_count
+        return self.all_files.count_deleted() - prev_deleted
 
 # vim: set expandtab sw=4 ts=4:
