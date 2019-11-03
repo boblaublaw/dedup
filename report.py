@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 
 """
-    
+   all the output scripts are generated here
+
+   this whole thing should be refactored for OOP
 """
 import sys
 import time
 from itertools import chain
 from collections import defaultdict
+
 
 def sizeof_fmt(num, suffix='B'):
     """helper function to convert bytes to IEC values like '5.6MiB'."""
@@ -16,6 +19,7 @@ def sizeof_fmt(num, suffix='B'):
             return "%3.1f %s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.1f%s%s" % (num, 'Yi', suffix)
+
 
 def generate_delete(filename, outfile):
     """generates not-quite-safe rm commands.  TODO does not handle
@@ -139,7 +143,7 @@ def generate_reports(all_files, outfile, start_time):
           sizeof_fmt(all_files.count_bytes(deleted=True)), file=outfile)
     print('# total dedup running time: ' +
           str(end_time - start_time) + ' seconds.', file=outfile)
-    
+
     # safe to ignore the following, just here to flex a helper function:
     ignore_this = sizeof_fmt(pow(1024, 8))
     ignore_this = sizeof_fmt(1024)

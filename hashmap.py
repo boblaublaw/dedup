@@ -22,7 +22,9 @@ def member_is_type(tup, typ):
 
 class HashMap:
     """
-    A wrapper to a python dict with some helper functions
+    A wrapper to a python dict with some helper functions.
+    This object is a hash-centric view of the filesystem. 
+    Duplicate files and directories are represented here, indexed by its hash value.
     """
     def __init__(self, all_files, args, outfile=sys.stdout):
         self.content_hash = defaultdict(lambda: [])

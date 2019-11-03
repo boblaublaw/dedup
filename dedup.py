@@ -15,11 +15,6 @@ from dirlist import DirList
 from hashdbobj import HashDbObj
 from report import generate_reports
 
-def subdirs(some_dir):
-    """helper function similar to os.walk but with a maxdepth param"""
-    for _, dirs, _ in os.walk(some_dir.rstrip(os.path.sep)):
-        return dirs
-
 
 def run_test(args, parser, test_name, start_time):
     """
@@ -102,7 +97,8 @@ def run_tests(args, parser, start_time):
     """
     run all the requested test cases, each described as a dir under "tests"
     """
-    test_list = subdirs('tests')
+    g = os.walk('tests')
+    _, test_list, _ = next(g)
 
     # filter to just the requested test(s)
     # this will be '00' if all tests are requested.
