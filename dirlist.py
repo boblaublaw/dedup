@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-    This module describes the EntryList object, static helpers, and constants
+    This module describes the DirList object, static helpers, and constants
 """
 import os
 import sys
@@ -59,7 +59,7 @@ def check_level(pathname):
     return 0, pathname
 
 
-class EntryList:
+class DirList:
     """
     A special container for all source directories and files to examine.
     """
@@ -126,7 +126,7 @@ class EntryList:
                   path, file=sys.stderr)
             sys.exit()
 
-    # EntryList.count_bytes
+    # DirList.count_bytes
     def count_bytes(self, deleted=False):
         """Returns a btyecount of all the (deleted) objects within"""
         b = 0
@@ -134,7 +134,7 @@ class EntryList:
             b = b + e.count_bytes(deleted)
         return b
 
-    # EntryList.count_deleted
+    # DirList.count_deleted
     def count_deleted(self):
         """Returns a count of all the deleted objects within"""
         count = 0
@@ -142,7 +142,7 @@ class EntryList:
             count = count + e.count_deleted()
         return count
 
-    # EntryList.prune_empty
+    # DirList.prune_empty
     def prune_empty(self):
         """
         Flags all the children of the deleted objects within to also

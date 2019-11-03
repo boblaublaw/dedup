@@ -11,7 +11,7 @@ import shutil
 import argparse
 from json import loads
 from hashmap import HashMap
-from entrylist import EntryList
+from dirlist import DirList
 from hashdbobj import HashDbObj
 from report import generate_reports
 
@@ -139,7 +139,7 @@ def analyze(args, paths, outfile=sys.stdout):
         db = HashDbObj(args, outfile)
 
     if len(paths) > 0:
-        all_files = EntryList(paths, db, args)
+        all_files = DirList(paths, db, args)
 
         hm = HashMap(all_files, args, outfile)
 
