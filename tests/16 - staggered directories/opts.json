@@ -1,0 +1,8 @@
+{
+	"args": [
+		"-s"
+	], "paths": [
+		"ephemeral/a",
+		"ephemeral/b"
+	]
+}

@@ -178,9 +178,7 @@ def run_test(args, parser, test_name):
     args = parser.parse_args(test_args)
 
     # run as many times as requested:
-    i=0
-    while (i < runs):
-        i = i + 1
+    for i in range(1,runs+1):
         print("# run number " + str(i), file=scriptfile)
         results = analyze(args, test_paths, scriptfile)
         if results is None:
@@ -256,23 +254,17 @@ def analyze(args, paths, outfile=sys.stdout):
 
     if len(paths) > 0:
         all_files = EntryList(paths, db, args)
-        pass_count = 0
-        # fake value to get the loop started:
-        deleted = 1
-        # while things are still being removed, keep working:
-        while deleted > 0:
-            sys.stdout.flush()
-            h = HashMap(all_files, args, outfile)
-            deleted_directories = all_files.prune_empty()
 
-            h = HashMap(all_files, args, outfile)
-            deleted_hash_matches = h.resolve()
+        hm = HashMap(all_files, args, outfile)
 
-            deleted = deleted_directories + deleted_hash_matches
-            pass_count = pass_count + 1
-            if deleted > 0:
-                print('# ' + str(deleted) +
-                      ' entries deleted on pass ' + str(pass_count), file=outfile)
+        # find and mark redundant files for deletion
+        deleted = hm.resolve()
+        # find and mark redundant empty directories for deletion
+        deleted = deleted + all_files.prune_empty()
+
+        print('# ' + str(deleted) + ' entries marked for deletion',
+              file=outfile)
+
         if db is not None:
             db.close()
         return all_files
