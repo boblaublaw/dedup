@@ -26,6 +26,7 @@ class HashMap:
     This object is a hash-centric view of the filesystem. 
     Duplicate files and directories are represented here, indexed by its hash value.
     """
+
     def __init__(self, all_files, args, outfile=sys.stdout):
         self.content_hash = defaultdict(lambda: [])
         self.min_depth = 1
@@ -123,7 +124,8 @@ class HashMap:
         prev_deleted = self.all_files.count_deleted()
 
         # do away with hash values that have no duplicates:
-        self.content_hash = {k: v for k, v in self.content_hash.items() if len(v) != 1}
+        self.content_hash = {k: v for k,
+                             v in self.content_hash.items() if len(v) != 1}
 
         for _, candidates in self.content_hash.items():
             self.resolve_candidates(candidates)

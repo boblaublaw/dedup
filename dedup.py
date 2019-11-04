@@ -42,7 +42,7 @@ def run_test(args, parser, test_name, start_time):
     # pull arguments out of tests/${test_name}/opts.json, if they exist
     test_args = []
     expected_pass = 0
-    test_paths = [ ephemeral_dir ]
+    test_paths = [ephemeral_dir]
     twice = False
     runs = 1
 
@@ -64,16 +64,15 @@ def run_test(args, parser, test_name, start_time):
     args = parser.parse_args(test_args)
 
     # run as many times as requested:
-    for i in range(1,runs+1):
+    for i in range(1, runs+1):
         print("# run number " + str(i), file=scriptfile)
         results = analyze(args, test_paths, scriptfile)
         if results is None:
             if expected_pass:
                 print("FAILED (failed analyze")
                 return -1
-            else:
-                print("PASSED")
-                return 0
+            print("PASSED")
+            return 0
 
     generate_reports(results, scriptfile, start_time)
     scriptfile.close()
@@ -102,7 +101,7 @@ def run_tests(args, parser, start_time):
 
     # filter to just the requested test(s)
     # this will be '00' if all tests are requested.
-    requested_test = ( '%02d' % int(args.run_tests))
+    requested_test = ('%02d' % int(args.run_tests))
     if requested_test != '00':
         test_list = [x for x in test_list if x[:2] == requested_test]
     else:

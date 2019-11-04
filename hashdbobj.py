@@ -41,6 +41,7 @@ class HashDbObj():
     The HashDbObj is a wrapper for a "dbm" cache file.
     This object is used if the "-d" option is requested at invocation.
     """
+
     def __init__(self, args, outfile):
         self.args = args
         self.outfile = outfile

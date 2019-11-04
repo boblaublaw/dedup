@@ -63,6 +63,7 @@ class DirList:
     """
     A special container for all source directories and files to examine.
     """
+
     def __init__(self, paths, db, args):
         """object initiazation"""
         self.contents = {}
@@ -83,7 +84,8 @@ class DirList:
         if os.path.isfile(path):
             if self.args.stagger_paths:
                 weight_adjust = weight_adjust + self.stagger
-            new_file = FileObj(path, self.args, self.db, weight_adjust=weight_adjust)
+            new_file = FileObj(path, self.args, self.db,
+                               weight_adjust=weight_adjust)
             if self.args.stagger_paths:
                 self.stagger = self.stagger + new_file.depth
             self.contents[path] = new_file
