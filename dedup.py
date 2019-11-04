@@ -181,7 +181,7 @@ Simplest Example:
     parser.add_argument("-s", "--stagger-paths", action="store_true",
                         help="always prefer files in argument order")
     parser.add_argument("-t", "--run-tests", nargs='?', const=0, default=-1, type=int,
-                        help="run all the tests listed in 'test' subdir")
+                        help="run selected test from 'test' subdir. -t alone runs all tests and ignores all other args")
     parser.add_argument('--foo', )
     parser.add_argument("-v", "--verbosity", action="count", default=0,
                         help="increase output verbosity")

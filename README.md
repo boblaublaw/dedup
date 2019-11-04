@@ -25,14 +25,7 @@ However, unlike these other projects, this project has a few additional features
 ## Utilization
 
 ```
-dedup.py [ opts ] [weight:]path1 [weight:]path2 [...] > cmds.sh # generate cmds
-vi commands.sh                                                  # review cmds
-sh commands.sh                                                  # execute cmds
-
-Where path can be any file or directory with an optional weight prefix.
-
-Where options can be:
-  -h, --help            show this help message and exit
+-h, --help            show this help message and exit
   -c, --clean-database  clean hash cache instead of normal operation
   -d DATABASE, --database DATABASE
                         name of DBM file to use for hash cache
@@ -56,7 +49,6 @@ Simplest Example:
 
      # Step Three - run the script:
      sh remove_commands.sh
-
 ```
 
 ## Features
