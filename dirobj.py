@@ -41,7 +41,7 @@ class DirObj():
         self.parent = parent
         self.hexdigest = None
         ancestry = self.get_lineage()
-        self.pathname = os.path.join(*ancestry)
+        self.pathname = os.path.sep + os.path.join(*ancestry)
         self.pathnamelen = len(self.pathname)
         self.depth = len(ancestry) + self.weight_adjust
 

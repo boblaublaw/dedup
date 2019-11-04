@@ -23,7 +23,7 @@ class FileObj():
         if self.parent is not None:
             ancestry = self.parent.get_lineage()
             ancestry.append(self.name)
-            self.pathname = os.path.join(*ancestry)
+            self.pathname = os.path.sep + os.path.join(*ancestry)
             self.depth = len(ancestry) + self.weight_adjust
         else:
             self.pathname = self.name

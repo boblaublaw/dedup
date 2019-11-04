@@ -95,15 +95,15 @@ def generate_map_commands(report, empty_report_names, outfile):
         print('# ' + report_name + ': ' +
               str(marked_count) + ' to remove', file=outfile)
         print('# This section could make ' +
-              sizeof_fmt(total_marked_bytes) + ' of file data redundant\n', file=outfile)
+              sizeof_fmt(total_marked_bytes) + ' of file data redundant', file=outfile)
     else:
         print('# ' + report_name + ' : ' + str(win_count) +
               ' to keep and ' + str(marked_count) + ' to remove', file=outfile)
         print('# This section could make ' +
-              sizeof_fmt(total_marked_bytes) + ' of file data redundant\n', file=outfile)
+              sizeof_fmt(total_marked_bytes) + ' of file data redundant', file=outfile)
 
     for winner in winner_list:
-        print("# This subsection could save " +
+        print("\n# This subsection could save " +
               sizeof_fmt(winner['total_marked_bytes']), file=outfile)
         if report_name not in empty_report_names:
             print("#      '" + winner['winner_name'] + "'", file=outfile)
